@@ -45,8 +45,7 @@ docs/
 
 - [x] Technical plan
 - [x] UX mockups (8-card flow)
-- [x] Backend schema + token service scaffold
-- [ ] SwiftUI screens
-- [ ] MusicKit playback + sync engine
-- [ ] LiveKit voice + ducking (device spike)
-- [ ] Judge voting + results wiring
+- [x] SwiftUI screens (8-card flow, mock-data previews)
+- [x] Services layer (SupabaseService, AppleMusicProvider, SyncEngine, VoiceService)
+- [ ] Device verification (Spike A/B/C runbook in docs/ — needs iPhone + accounts)
+- [ ] Judge voting + results backend wiring polish (single-round v1 → multi-round)
