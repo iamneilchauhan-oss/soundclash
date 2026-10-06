@@ -64,6 +64,14 @@ struct MenuView: View {
             .padding(28)
         }
         .sheet(isPresented: $showSettings) { SettingsSheet() }
+        .alert("Couldn't continue", isPresented: Binding(
+            get: { appState.backendError != nil },
+            set: { if !$0 { appState.backendError = nil } }
+        )) {
+            Button("OK") { appState.backendError = nil }
+        } message: {
+            Text(appState.backendError ?? "")
+        }
         .task { viewModel.configure(appState) }
         .toolbar(.hidden, for: .navigationBar)
     }
