@@ -13,7 +13,7 @@ final class MenuViewModel {
         Task {
             do {
                 try SupabaseService.shared.checkConfigured()
-                try await AppleMusicProvider.shared.requestAuthorization()
+                try await MusicMode.provider.requestAuthorization()
                 appState.go(.joinHost)
             } catch {
                 appState.backendError = error.localizedDescription
@@ -84,6 +84,7 @@ struct SettingsSheet: View {
     @State private var appleMusicConnected = true
     @State private var notifications = false
     @State private var highQuality = true
+    @AppStorage("soundclash.demoMusicMode") private var demoMode = false
 
     var body: some View {
         NavigationStack {
@@ -97,6 +98,12 @@ struct SettingsSheet: View {
                                 guard !SCPreview.isActive else { return }
                                 appleMusicConnected = await AppleMusicProvider.shared.isAuthorized
                             }
+                    }
+                    Section("Testing") {
+                        Toggle("Demo tracks mode", isOn: $demoMode)
+                        Text("Uses built-in demo tracks instead of Apple Music, so the full battle flow is testable before the MusicKit service is enabled.")
+                            .font(.footnote)
+                            .foregroundStyle(SCTheme.secondaryText)
                     }
                     Section("Preferences") {
                         Toggle("Battle notifications", isOn: $notifications)

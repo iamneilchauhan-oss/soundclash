@@ -11,7 +11,7 @@ enum PlaySync {
         guard let latest = plays.last,
               latest.startedAt != nil,
               latest.id != syncedId else { return nil }
-        try await SyncEngine.shared.startSyncedPlay(play: latest, via: AppleMusicProvider.shared)
+        try await SyncEngine.shared.startSyncedPlay(play: latest, via: MusicMode.provider)
         return latest
     }
 

@@ -47,6 +47,10 @@ protocol MusicProvider: AnyObject {
 
     var isPlaying: Bool { get }
 
+    /// Whether the provider is ready to play (authorization granted, or
+    /// always true for providers that need none).
+    var isAuthorized: Bool { get }
+
     /// Requests Apple Music authorization AND verifies catalog playback rights.
     func requestAuthorization() async throws
 

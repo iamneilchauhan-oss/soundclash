@@ -428,7 +428,7 @@ final class PlayerBattleViewModel {
         guard q.count >= 2 else { return }
         Task {
             do {
-                let tracks = try await AppleMusicProvider.shared.searchCatalog(query: q)
+                let tracks = try await MusicMode.provider.searchCatalog(query: q)
                 for t in tracks { trackById[t.appleMusicId] = t }
                 catalogSongs = tracks.map(MockSong.init)
             } catch {
@@ -461,7 +461,7 @@ final class PlayerBattleViewModel {
         previewTask?.cancel()
         previewingId = nil
         selectedSong = nil
-        AppleMusicProvider.shared.pause() // stop any preview
+        MusicMode.provider.pause() // stop any preview
         Task {
             do {
                 // Single code path: our own realtime echo starts synced playback,
@@ -523,7 +523,7 @@ final class PlayerBattleViewModel {
         clipTask?.cancel()
         if !SCPreview.isActive {
             SyncEngine.shared.stop()
-            AppleMusicProvider.shared.pause()
+            MusicMode.provider.pause()
         }
         finishClip()
     }
@@ -559,7 +559,7 @@ final class PlayerBattleViewModel {
         if SCPreview.isActive { previewMock(song); return }
         // Real mode: private 30s Apple Music preview, not synced.
         if previewingId == song.id {
-            AppleMusicProvider.shared.pause()
+            MusicMode.provider.pause()
             previewingId = nil
             return
         }
@@ -567,7 +567,7 @@ final class PlayerBattleViewModel {
         previewingId = song.id
         previewProgress = 0
         Task {
-            do { try await AppleMusicProvider.shared.playPreview(track: track) }
+            do { try await MusicMode.provider.playPreview(track: track) }
             catch { appState.backendError = error.localizedDescription }
         }
     }
