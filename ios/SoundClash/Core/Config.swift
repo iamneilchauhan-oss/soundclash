@@ -9,10 +9,8 @@ enum SCConfig {
     static let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2dm9peWRuYWRyYXhzcG14cHB5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMzk0MzAsImV4cCI6MjEwNjgxNTQzMH0.TD5X59jjH_howehvYqN4qDYKNWex_r98taUrUyDyHjU"
     /// Base URL of backend/token-service (no trailing slash).
     /// e.g. "https://soundclash-tokens.fly.dev"
-    static let tokenServiceBaseURL = "https://YOUR_TOKEN_SERVICE.example.com"
+    static let tokenServiceBaseURL = "https://soundclash-token-service.onrender.com"
 }
-
-#warning("Fill in SCConfig tokenServiceBaseURL before running on device.")
 
 /// True inside Xcode Previews — view models use MockData instead of the network,
 /// so every #Preview keeps working with zero backend configured.
