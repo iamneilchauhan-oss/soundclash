@@ -32,6 +32,12 @@ final class CoinTossViewModel {
                 if competitors.count >= 2 {
                     appState.redCompetitorId = competitors[0].id
                     appState.blueCompetitorId = competitors[1].id
+                } else if let solo = competitors.first {
+                    // Solo testing: seat the lone competitor in the red corner.
+                    // PlaySync.side maps unknown player IDs to red, so this keeps
+                    // the side mapping consistent — otherwise a solo player's own
+                    // picks never count toward their side and the round can't end.
+                    appState.redCompetitorId = solo.id
                 }
                 if let myId = appState.myParticipantId {
                     appState.mySide = (myId == appState.redCompetitorId) ? .red : .blue
