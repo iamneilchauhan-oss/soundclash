@@ -208,6 +208,6 @@ final class DemoMusicProvider: MusicProvider {
 private extension Data {
     mutating func appendLE<T: FixedWidthInteger>(_ value: T) {
         var v = value.littleEndian
-        withUnsafeBytes(of: &v) { append(contentsOf: $0) }
+        Swift.withUnsafeBytes(of: &v) { append(contentsOf: $0) }
     }
 }
