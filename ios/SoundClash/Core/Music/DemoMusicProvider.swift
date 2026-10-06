@@ -126,11 +126,12 @@ final class DemoMusicProvider: MusicProvider {
         return url
     }
 
-    /// Renders a ~20s original loop: an arpeggiated I–vi–IV–V progression with
-    /// a soft bass, each demo track in a different key and tempo.
+    /// Renders a ~30s original loop (matches MusicMode.clipSeconds): an
+    /// arpeggiated I–vi–IV–V progression with a soft bass, each demo track
+    /// in a different key and tempo.
     private static func renderWAV(trackIndex i: Int) -> Data? {
         let sampleRate = 44100.0
-        let duration = 20.0
+        let duration = 30.0
         let total = Int(sampleRate * duration)
         var samples = [Float](repeating: 0, count: total)
 

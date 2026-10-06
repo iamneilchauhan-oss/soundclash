@@ -212,8 +212,8 @@ final class JudgeBattleViewModel {
     }
 
     /// Progress from the server timestamp (replaces the mock timer).
-    /// clipLength should match the room's clipSeconds (90s default).
-    private func startProgressPolling(startedAt: Date, clipLength: TimeInterval = 90) {
+    /// clipLength defaults to MusicMode.clipSeconds (90s real, 30s demo).
+    private func startProgressPolling(startedAt: Date, clipLength: TimeInterval = MusicMode.clipSeconds) {
         clipTask?.cancel()
         progress = 0
         clipTask = Task { @MainActor in
@@ -475,6 +475,37 @@ final class PlayerBattleViewModel {
         }
     }
 
+    /// Demo testing only: fabricates the opponent's pick locally so a solo
+    /// tester can play both sides of a round. No Supabase write — a solo
+    /// room has no opponent participant row (and plays.player_id has a FK
+    /// to participants). Drives the real SyncEngine + provider + progress
+    /// path, so the rest of the round behaves like a real pick.
+    func simulateOpponentPick() {
+        guard MusicMode.useDemoTracks,
+              !SCPreview.isActive,
+              !bothPlayed, nowPlaying == nil, !isMyTurnToPick,
+              let roundId = appState.currentRoundId else { return }
+        let track = DemoMusicProvider.demoTracks.randomElement()!
+        nowPlayingSide = turn
+        nowPlaying = MockSong(track)
+        let startedAt = Date()
+        let play = Play(id: UUID(), roundId: roundId, playerId: UUID(),
+                        isrc: track.isrc, appleMusicId: track.appleMusicId,
+                        title: track.title, artist: track.artist,
+                        artworkUrl: nil, startedAt: startedAt, createdAt: startedAt)
+        syncedPlayId = play.id
+        previewTask?.cancel()
+        previewingId = nil
+        Task {
+            do {
+                try await SyncEngine.shared.startSyncedPlay(play: play, via: MusicMode.provider)
+            } catch {
+                appState.backendError = error.localizedDescription
+            }
+        }
+        startProgressPolling(startedAt: startedAt)
+    }
+
     private func playSelectedMock(_ song: MockSong) {
         previewTask?.cancel()
         previewingId = nil
@@ -504,8 +535,8 @@ final class PlayerBattleViewModel {
     }
 
     /// Progress from the server timestamp (replaces the mock timer).
-    /// clipLength should match the room's clipSeconds (90s default).
-    private func startProgressPolling(startedAt: Date, clipLength: TimeInterval = 90) {
+    /// clipLength defaults to MusicMode.clipSeconds (90s real, 30s demo).
+    private func startProgressPolling(startedAt: Date, clipLength: TimeInterval = MusicMode.clipSeconds) {
         clipTask?.cancel()
         progress = 0
         clipTask = Task { @MainActor in
@@ -674,6 +705,10 @@ struct PlayerBattleView: View {
                                 .font(.system(size: 14, weight: .medium, design: .rounded))
                                 .foregroundStyle(SCTheme.secondaryText)
                         }
+                    } else {
+                        // Opponent's turn and nothing playing yet — never leave
+                        // this state blank (it reads as a broken black screen).
+                        waitingView
                     }
                 }
                 .padding(20)
@@ -682,6 +717,27 @@ struct PlayerBattleView: View {
         .task { viewModel.configure(appState) }
         .onDisappear { viewModel.stop() }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    /// Opponent's turn and nothing playing yet — the "waiting" state.
+    /// Includes a demo-only button to simulate the opponent's pick so a
+    /// solo tester can play both sides of a round.
+    private var waitingView: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .tint(.white)
+            Text("\(appState.name(for: viewModel.turn).uppercased()) IS PICKING")
+                .font(.system(size: 16, weight: .black, design: .rounded))
+                .foregroundStyle(viewModel.turn.color)
+            Text("Get ready — you're up next")
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundStyle(SCTheme.secondaryText)
+            if MusicMode.useDemoTracks {
+                Button("Simulate opponent pick") { viewModel.simulateOpponentPick() }
+                    .buttonStyle(SCSecondaryButton())
+            }
+        }
+        .scCard()
     }
 
     private var pickView: some View {
@@ -802,7 +858,7 @@ final class SpectatorViewModel {
                 while !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 500_000_000)
                     if Task.isCancelled { return }
-                    progress = min(1, max(0, Date().timeIntervalSince(startedAt) / 90))
+                    progress = min(1, max(0, Date().timeIntervalSince(startedAt) / MusicMode.clipSeconds))
                 }
             }
         } catch {

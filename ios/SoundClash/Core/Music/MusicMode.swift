@@ -18,4 +18,8 @@ enum MusicMode {
     @MainActor static var provider: any MusicProvider {
         useDemoTracks ? DemoMusicProvider.shared : AppleMusicProvider.shared
     }
+
+    /// Battle clip length in seconds. Demo tracks are 30s on-device renders;
+    /// real rooms play 90s excerpts of full catalog tracks.
+    static var clipSeconds: TimeInterval { useDemoTracks ? 30 : 90 }
 }
