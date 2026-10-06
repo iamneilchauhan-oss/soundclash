@@ -1,0 +1,1 @@
+{"dependencies":{"express":"^4.19.2","jsonwebtoken":"^9.0.2","livekit-server-sdk":"^2.4.0"},"description":"Mints MusicKit developer JWTs and LiveKit access tokens for SoundClash","main":"server.js","name":"soundclash-token-service","scripts":{"start":"node server.js"},"version":"0.1.0"}
