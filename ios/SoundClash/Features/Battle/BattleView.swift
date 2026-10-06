@@ -475,35 +475,56 @@ final class PlayerBattleViewModel {
         }
     }
 
-    /// Demo testing only: fabricates the opponent's pick locally so a solo
+    /// Solo testing only: fabricates the opponent's pick locally so a lone
     /// tester can play both sides of a round. No Supabase write — a solo
     /// room has no opponent participant row (and plays.player_id has a FK
     /// to participants). Drives the real SyncEngine + provider + progress
-    /// path, so the rest of the round behaves like a real pick.
+    /// path, so the rest of the round behaves like a real pick. In Apple
+    /// Music mode the simulated pick uses a real catalog track.
     func simulateOpponentPick() {
-        guard MusicMode.useDemoTracks,
+        guard isSoloOpponentTurn,
               !SCPreview.isActive,
-              !bothPlayed, nowPlaying == nil, !isMyTurnToPick,
               let roundId = appState.currentRoundId else { return }
-        let track = DemoMusicProvider.demoTracks.randomElement()!
-        nowPlayingSide = turn
-        nowPlaying = MockSong(track)
-        let startedAt = Date()
-        let play = Play(id: UUID(), roundId: roundId, playerId: UUID(),
-                        isrc: track.isrc, appleMusicId: track.appleMusicId,
-                        title: track.title, artist: track.artist,
-                        artworkUrl: nil, startedAt: startedAt, createdAt: startedAt)
-        syncedPlayId = play.id
-        previewTask?.cancel()
-        previewingId = nil
+        let side = turn
         Task {
             do {
+                let track: SCTrack
+                if MusicMode.useDemoTracks {
+                    track = DemoMusicProvider.demoTracks.randomElement()!
+                } else {
+                    let results = try await MusicMode.provider.searchCatalog(query: "love")
+                    guard let first = results.first else {
+                        appState.backendError = "Couldn't find a track for the simulated pick."
+                        return
+                    }
+                    track = first
+                }
+                nowPlayingSide = side
+                nowPlaying = MockSong(track)
+                let startedAt = Date()
+                let play = Play(id: UUID(), roundId: roundId, playerId: UUID(),
+                                isrc: track.isrc, appleMusicId: track.appleMusicId,
+                                title: track.title, artist: track.artist,
+                                artworkUrl: track.artworkURL?.absoluteString,
+                                startedAt: startedAt, createdAt: startedAt)
+                syncedPlayId = play.id
+                previewTask?.cancel()
+                previewingId = nil
                 try await SyncEngine.shared.startSyncedPlay(play: play, via: MusicMode.provider)
+                startProgressPolling(startedAt: startedAt)
             } catch {
                 appState.backendError = error.localizedDescription
             }
         }
-        startProgressPolling(startedAt: startedAt)
+    }
+
+    /// True when the side whose turn it is has no real competitor — i.e. solo
+    /// testing. The simulate-pick button only appears then, so it can never
+    /// show in a real two-player battle.
+    var isSoloOpponentTurn: Bool {
+        guard !bothPlayed, nowPlaying == nil, !isMyTurnToPick else { return false }
+        let opponentId = turn == .red ? appState.redCompetitorId : appState.blueCompetitorId
+        return opponentId == nil
     }
 
     private func playSelectedMock(_ song: MockSong) {
@@ -720,24 +741,32 @@ struct PlayerBattleView: View {
     }
 
     /// Opponent's turn and nothing playing yet — the "waiting" state.
-    /// Includes a demo-only button to simulate the opponent's pick so a
-    /// solo tester can play both sides of a round.
+    /// Includes a solo-testing button to simulate the opponent's pick so a
+    /// lone tester can play both sides of a round.
     private var waitingView: some View {
         VStack(spacing: 12) {
             ProgressView()
                 .tint(.white)
-            Text("\(appState.name(for: viewModel.turn).uppercased()) IS PICKING")
+            Text(waitingTitle)
                 .font(.system(size: 16, weight: .black, design: .rounded))
                 .foregroundStyle(viewModel.turn.color)
             Text("Get ready — you're up next")
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundStyle(SCTheme.secondaryText)
-            if MusicMode.useDemoTracks {
+            if viewModel.isSoloOpponentTurn {
                 Button("Simulate opponent pick") { viewModel.simulateOpponentPick() }
                     .buttonStyle(SCSecondaryButton())
             }
         }
         .scCard()
+    }
+
+    /// Waiting title that doesn't leak mock names for a phantom opponent.
+    private var waitingTitle: String {
+        let side = viewModel.turn
+        let id = side == .red ? appState.redCompetitorId : appState.blueCompetitorId
+        guard id != nil else { return "OPPONENT IS PICKING" }
+        return "\(appState.name(for: side).uppercased()) IS PICKING"
     }
 
     private var pickView: some View {
