@@ -54,8 +54,10 @@ protocol MusicProvider: AnyObject {
     /// Requests Apple Music authorization AND verifies catalog playback rights.
     func requestAuthorization() async throws
 
-    /// Catalog search for the track picker.
-    func searchCatalog(query: String) async throws -> [SCTrack]
+    /// Catalog search for the track picker. When `artist` is non-nil the
+    /// results are scoped to that artist's songs (the battle's artist
+    /// matchup) — the picker must never show random other artists.
+    func searchCatalog(query: String, artist: String?) async throws -> [SCTrack]
 
     /// Queue the track, then begin playback at `startAt` (wall clock).
     /// This is the sync mechanism: every device is handed the same server

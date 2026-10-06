@@ -71,9 +71,13 @@ final class SyncEngine {
         lastDrift = drift
         isSynced = drift <= driftTolerance
         if drift > driftTolerance {
-            // Coarse correction only: restart the track. By construction this
-            // can happen at most once per heartbeat interval.
+            // Coarse correction only: restart the track, then re-baseline the
+            // clock to the restart moment. Without the re-baseline, `expected`
+            // keeps growing from the original startedAt while `actual` resets
+            // to 0 — so every heartbeat sees huge drift and restarts again,
+            // which is audible as a ~5s loop that never plays through.
             try? await provider.restart()
+            activePlay?.startedAt = Date()
         }
     }
 

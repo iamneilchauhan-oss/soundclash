@@ -40,13 +40,18 @@ final class DemoMusicProvider: MusicProvider {
     /// Nothing to authorize — always "granted".
     func requestAuthorization() async throws {}
 
-    func searchCatalog(query: String) async throws -> [SCTrack] {
+    func searchCatalog(query: String, artist: String?) async throws -> [SCTrack] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return Self.demoTracks }
-        let hits = Self.demoTracks.filter {
+        var hits = Self.demoTracks
+        if let a = artist?.trimmingCharacters(in: .whitespaces).lowercased(), !a.isEmpty {
+            let artistHits = hits.filter { $0.artist.lowercased().contains(a) }
+            if !artistHits.isEmpty { hits = artistHits }
+        }
+        guard !q.isEmpty else { return hits }
+        let qHits = hits.filter {
             $0.title.lowercased().contains(q) || $0.artist.lowercased().contains(q)
         }
-        return hits.isEmpty ? Self.demoTracks : hits
+        return qHits.isEmpty ? hits : qHits
     }
 
     /// Same wall-clock scheduled-start contract as AppleMusicProvider: render
@@ -54,6 +59,8 @@ final class DemoMusicProvider: MusicProvider {
     func play(track: SCTrack, startAt: Date) async throws {
         try ensurePlayer(for: track)
         scheduledTask?.cancel()
+        // A stale preview auto-stop must never fire during a synced play.
+        previewTask?.cancel()
         scheduledTask = Task {
             let delay = startAt.timeIntervalSinceNow
             if delay > 0 {

@@ -42,11 +42,29 @@ final class AppleMusicProvider: MusicProvider {
 
     // MARK: - Catalog
 
-    func searchCatalog(query: String) async throws -> [SCTrack] {
-        var request = MusicCatalogSearchRequest(term: query, types: [Song.self])
+    func searchCatalog(query: String, artist: String?) async throws -> [SCTrack] {
+        let trimmedArtist = artist?.trimmingCharacters(in: .whitespaces)
+        let scopedArtist = (trimmedArtist?.isEmpty == false) ? trimmedArtist! : nil
+        // Bias the catalog ranking toward the artist, then filter strictly —
+        // the battle picker shows this artist's songs only.
+        let term: String
+        if let scopedArtist {
+            let q = query.trimmingCharacters(in: .whitespaces)
+            term = q.isEmpty ? scopedArtist : "\(scopedArtist) \(q)"
+        } else {
+            term = query
+        }
+        var request = MusicCatalogSearchRequest(term: term, types: [Song.self])
         request.limit = 25
         let response = try await request.response()
-        return response.songs.map { song in
+        var songs = response.songs
+        if let scopedArtist {
+            let hits = songs.filter { $0.artistName.localizedCaseInsensitiveContains(scopedArtist) }
+            // If the strict filter empties the list (name mismatch), fall back
+            // to the ranked results rather than showing a dead picker.
+            if !hits.isEmpty { songs = hits }
+        }
+        return songs.map { song in
             SCTrack(
                 appleMusicId: song.id.rawValue,
                 isrc: song.isrc ?? "",
@@ -79,6 +97,9 @@ final class AppleMusicProvider: MusicProvider {
         lastSong = song
         player.queue = [song]
         scheduledTask?.cancel()
+        // A stale preview auto-stop must never fire during a synced play —
+        // 30s after any preview it would otherwise pause the battle track.
+        previewTask?.cancel()
         scheduledTask = Task {
             let delay = startAt.timeIntervalSinceNow
             if delay > 0 {

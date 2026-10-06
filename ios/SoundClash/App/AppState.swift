@@ -145,6 +145,10 @@ final class AppState {
     var currentRoundNumber = 5
     var redCompetitorId: UUID? = nil
     var blueCompetitorId: UUID? = nil
+    /// Local cache of the matchup screen's artist picks, keyed by side.
+    /// Covers solo/phantom opponents, who have no participant row to read
+    /// an artist pick from.
+    var matchupArtists: [Side: String] = [:]
     /// Last backend error, for future error UI.
     var backendError: String? = nil
 
@@ -165,6 +169,7 @@ final class AppState {
         currentRoundNumber = 5
         redCompetitorId = nil
         blueCompetitorId = nil
+        matchupArtists = [:]
         backendError = nil
         onPlaysChanged = nil
         onVotesChanged = nil
@@ -254,6 +259,21 @@ final class AppState {
         }
         let base = side == .red ? MockData.redCompetitor.username : MockData.blueCompetitor.username
         return (myRole == .competitor && mySide == side) ? "\(base) (You)" : base
+    }
+
+    /// The artist a side is battling with. Prefers the competitor's locked
+    /// participant row; falls back to the matchup screen's local picks (solo
+    /// / phantom opponents have no row). Nil when nothing was picked.
+    func artistPick(for side: Side) -> String? {
+        if !SCPreview.isActive {
+            let id = side == .red ? redCompetitorId : blueCompetitorId
+            if let id,
+               let pick = participants.first(where: { $0.id == id })?.artistPick,
+               !pick.isEmpty {
+                return pick
+            }
+        }
+        return matchupArtists[side]
     }
 
     var finalScore: (red: Int, blue: Int) {

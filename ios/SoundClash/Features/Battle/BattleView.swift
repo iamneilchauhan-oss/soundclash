@@ -228,6 +228,12 @@ final class JudgeBattleViewModel {
     }
 
     private func finishClip() {
+        if !SCPreview.isActive {
+            // Real mode: the clip is over — kill the heartbeat and the audio
+            // so the finished track can't keep playing into voting.
+            SyncEngine.shared.stop()
+            MusicMode.provider.pause()
+        }
         playedSides.insert(currentSide)
         if playedSides.count >= 2 {
             bothPlayed = true
@@ -258,6 +264,7 @@ final class JudgeBattleViewModel {
         clipTask?.cancel()
         if !SCPreview.isActive {
             SyncEngine.shared.stop()
+            MusicMode.provider.pause()
             appState?.onPlaysChanged = nil
         }
     }
@@ -421,14 +428,16 @@ final class PlayerBattleViewModel {
         return catalogSongs
     }
 
-    /// Real mode: live Apple Music catalog search (replaces the mock song list).
+    /// Real mode: live Apple Music catalog search, scoped to my battle
+    /// artist (replaces the mock song list).
     func search() {
         guard !SCPreview.isActive else { return }
         let q = searchText.trimmingCharacters(in: .whitespaces)
         guard q.count >= 2 else { return }
+        let artist = appState.artistPick(for: mySide)
         Task {
             do {
-                let tracks = try await MusicMode.provider.searchCatalog(query: q)
+                let tracks = try await MusicMode.provider.searchCatalog(query: q, artist: artist)
                 for t in tracks { trackById[t.appleMusicId] = t }
                 catalogSongs = tracks.map(MockSong.init)
             } catch {
@@ -480,19 +489,27 @@ final class PlayerBattleViewModel {
     /// room has no opponent participant row (and plays.player_id has a FK
     /// to participants). Drives the real SyncEngine + provider + progress
     /// path, so the rest of the round behaves like a real pick. In Apple
-    /// Music mode the simulated pick uses a real catalog track.
+    /// Music mode the simulated pick is a real catalog track by the
+    /// opponent's battle artist.
     func simulateOpponentPick() {
         guard isSoloOpponentTurn,
               !SCPreview.isActive,
               let roundId = appState.currentRoundId else { return }
         let side = turn
+        let opponentArtist = appState.artistPick(for: side)
         Task {
             do {
                 let track: SCTrack
                 if MusicMode.useDemoTracks {
                     track = DemoMusicProvider.demoTracks.randomElement()!
                 } else {
-                    let results = try await MusicMode.provider.searchCatalog(query: "love")
+                    var results: [SCTrack] = []
+                    if let opponentArtist {
+                        results = (try? await MusicMode.provider.searchCatalog(query: "", artist: opponentArtist)) ?? []
+                    }
+                    if results.isEmpty {
+                        results = try await MusicMode.provider.searchCatalog(query: "love", artist: nil)
+                    }
                     guard let first = results.first else {
                         appState.backendError = "Couldn't find a track for the simulated pick."
                         return
@@ -595,6 +612,13 @@ final class PlayerBattleViewModel {
     }
 
     private func finishClip() {
+        if !SCPreview.isActive {
+            // Real mode: the clip is over — kill the heartbeat and the audio.
+            // Otherwise the finished track keeps playing (and the heartbeat
+            // keeps restarting it) straight through the next turn.
+            SyncEngine.shared.stop()
+            MusicMode.provider.pause()
+        }
         playedSides.insert(nowPlayingSide)
         if playedSides.count >= 2 {
             bothPlayed = true
@@ -664,6 +688,7 @@ final class PlayerBattleViewModel {
         previewTask?.cancel()
         if !SCPreview.isActive {
             SyncEngine.shared.stop()
+            MusicMode.provider.pause()
             appState?.onPlaysChanged = nil
         }
     }
@@ -731,6 +756,10 @@ struct PlayerBattleView: View {
                         // this state blank (it reads as a broken black screen).
                         waitingView
                     }
+
+                    if TestingFlags.showSkipControls {
+                        testingCard
+                    }
                 }
                 .padding(20)
             }
@@ -767,6 +796,25 @@ struct PlayerBattleView: View {
         let id = side == .red ? appState.redCompetitorId : appState.blueCompetitorId
         guard id != nil else { return "OPPONENT IS PICKING" }
         return "\(appState.name(for: side).uppercased()) IS PICKING"
+    }
+
+    /// Testing-only escape hatch (Settings > Testing): force-advance the
+    /// round state machine without waiting out full clips.
+    private var testingCard: some View {
+        VStack(spacing: 10) {
+            Text("TESTING CONTROLS")
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .foregroundStyle(.orange)
+            HStack(spacing: 10) {
+                Button("End turn") { viewModel.endTurnEarly() }
+                    .buttonStyle(SCSecondaryButton())
+                    .disabled(viewModel.nowPlaying == nil)
+                    .opacity(viewModel.nowPlaying == nil ? 0.4 : 1)
+                Button("Skip to voting") { viewModel.goVoting() }
+                    .buttonStyle(SCSecondaryButton())
+            }
+        }
+        .scCard()
     }
 
     private var pickView: some View {
@@ -899,6 +947,7 @@ final class SpectatorViewModel {
         clipTask?.cancel()
         if !SCPreview.isActive {
             SyncEngine.shared.stop()
+            MusicMode.provider.pause()
             appState?.onPlaysChanged = nil
         }
     }

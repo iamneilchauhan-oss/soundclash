@@ -85,6 +85,7 @@ struct SettingsSheet: View {
     @State private var notifications = false
     @State private var highQuality = true
     @AppStorage("soundclash.demoMusicMode") private var demoMode = false
+    @AppStorage("soundclash.testing.skipControls") private var skipControls = false
 
     var body: some View {
         NavigationStack {
@@ -102,6 +103,10 @@ struct SettingsSheet: View {
                     Section("Testing") {
                         Toggle("Demo tracks mode", isOn: $demoMode)
                         Text("Uses built-in demo tracks instead of Apple Music, so the full battle flow is testable before the MusicKit service is enabled.")
+                            .font(.footnote)
+                            .foregroundStyle(SCTheme.secondaryText)
+                        Toggle("Battle skip controls", isOn: $skipControls)
+                        Text("Shows End turn / Skip to voting buttons on the battle screen so you can force-advance the round while testing.")
                             .font(.footnote)
                             .foregroundStyle(SCTheme.secondaryText)
                     }

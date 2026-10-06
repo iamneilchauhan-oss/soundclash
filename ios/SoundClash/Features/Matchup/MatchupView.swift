@@ -42,6 +42,11 @@ final class MatchupViewModel {
     func lock(_ side: Side) {
         guard artist(for: side) != nil else { return }
         if side == .red { redLocked = true } else { blueLocked = true }
+        // Keep a local copy of every locked pick — solo/phantom opponents
+        // never get a participant row, but the battle still needs their artist.
+        if let artist = artist(for: side) {
+            appState.matchupArtists[side] = artist
+        }
         // Real mode: lock my artist pick on my participant row. (Prototype
         // simplification: the matchup screen is driven from one device, like the
         // mock; sides map to competitor participants at the coin toss.)
