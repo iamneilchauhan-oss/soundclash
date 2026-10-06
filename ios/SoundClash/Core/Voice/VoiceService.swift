@@ -13,9 +13,14 @@ final class VoiceService {
     var remoteParticipantCount = 0
     var microphoneEnabled = false
 
-    private lazy var room: LiveKit.Room = LiveKit.Room(delegate: self)
+    /// Not `lazy`: @Observable synthesizes stored properties with init
+    /// accessors, and `lazy` is illegal on those. IUO lets init pass
+    /// `self` as the room's delegate once initialization is complete.
+    private var room: LiveKit.Room!
 
-    private init() {}
+    private init() {
+        room = LiveKit.Room(delegate: self)
+    }
 
     /// Connects to the LiveKit room for this battle. `room` is the battle's
     /// room code so voice follows the same room as the game state.
@@ -48,11 +53,13 @@ final class VoiceService {
 // MARK: - RoomDelegate
 
 extension VoiceService: RoomDelegate {
-    func room(_ room: LiveKit.Room, participantDidJoin participant: RemoteParticipant) {
+    // LiveKit 2.x renamed participantDidJoin → participantDidConnect and
+    // participantDidLeave → participantDidDisconnect.
+    func room(_ room: LiveKit.Room, participantDidConnect participant: RemoteParticipant) {
         remoteParticipantCount = room.remoteParticipants.count
     }
 
-    func room(_ room: LiveKit.Room, participantDidLeave participant: RemoteParticipant) {
+    func room(_ room: LiveKit.Room, participantDidDisconnect participant: RemoteParticipant) {
         remoteParticipantCount = room.remoteParticipants.count
     }
 }
