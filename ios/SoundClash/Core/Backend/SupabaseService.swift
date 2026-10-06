@@ -33,6 +33,17 @@ enum RoomEvent: Sendable {
     case votes
 }
 
+/// Hops a realtime room event onto the main actor. File-private and
+/// nonisolated so the Supabase realtime callbacks (synchronous, fired on
+/// background threads) can call it directly; the hop happens inside.
+private func emitRoomEvent(
+    _ event: RoomEvent,
+    to onEvent: @escaping @MainActor (RoomEvent) -> Void
+) {
+    // @MainActor closures are Sendable, so capturing onEvent here is safe.
+    Task { @MainActor in onEvent(event) }
+}
+
 // MARK: - Service
 
 /// Thin wrapper over supabase-swift. All tables use the prototype-open RLS
@@ -413,44 +424,38 @@ final class SupabaseService {
         let id = roomId.uuidString
         let channel = client.realtimeV2.channel("room-\(id)")
 
-        // @MainActor closures are Sendable, so capturing onEvent in the SDK's
-        // (possibly off-main) callbacks is safe; we hop before invoking it.
-        func emit(_ event: RoomEvent) {
-            Task { @MainActor in onEvent(event) }
-        }
-
         let tokens: [ObservationToken] = [
             channel.onPostgresChange(
                 UpdateAction.self, schema: "public", table: "rooms",
                 filter: "id=eq.\(id)"
-            ) { _ in emit(.room) },
+            ) { _ in emitRoomEvent(.room, to: onEvent) },
             channel.onPostgresChange(
                 InsertAction.self, schema: "public", table: "participants",
                 filter: "room_id=eq.\(id)"
-            ) { _ in emit(.participants) },
+            ) { _ in emitRoomEvent(.participants, to: onEvent) },
             channel.onPostgresChange(
                 UpdateAction.self, schema: "public", table: "participants",
                 filter: "room_id=eq.\(id)"
-            ) { _ in emit(.participants) },
+            ) { _ in emitRoomEvent(.participants, to: onEvent) },
             channel.onPostgresChange(
                 InsertAction.self, schema: "public", table: "rounds",
                 filter: "room_id=eq.\(id)"
-            ) { _ in emit(.rounds) },
+            ) { _ in emitRoomEvent(.rounds, to: onEvent) },
             channel.onPostgresChange(
                 UpdateAction.self, schema: "public", table: "rounds",
                 filter: "room_id=eq.\(id)"
-            ) { _ in emit(.rounds) },
+            ) { _ in emitRoomEvent(.rounds, to: onEvent) },
             // plays/votes carry round_id, not room_id — subscribe unfiltered and
             // let the handler ignore rows for other rounds.
             channel.onPostgresChange(
                 InsertAction.self, schema: "public", table: "plays"
-            ) { _ in emit(.plays) },
+            ) { _ in emitRoomEvent(.plays, to: onEvent) },
             channel.onPostgresChange(
                 UpdateAction.self, schema: "public", table: "plays"
-            ) { _ in emit(.plays) },
+            ) { _ in emitRoomEvent(.plays, to: onEvent) },
             channel.onPostgresChange(
                 InsertAction.self, schema: "public", table: "votes"
-            ) { _ in emit(.votes) },
+            ) { _ in emitRoomEvent(.votes, to: onEvent) },
         ]
         observationTokens.formUnion(tokens)
         try await channel.subscribeWithError()

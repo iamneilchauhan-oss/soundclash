@@ -185,7 +185,8 @@ final class AppState {
                     participants = list
                 }
                 try await SupabaseService.shared.subscribeToRoom(roomId: roomId) { [weak self] event in
-                    await self?.handleRoomEvent(event)
+                    guard let self else { return }
+                    Task { await self.handleRoomEvent(event) }
                 }
             } catch {
                 self.backendError = error.localizedDescription
