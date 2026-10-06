@@ -185,7 +185,7 @@ final class JudgeBattleViewModel {
         clipTask = Task { @MainActor in
             let steps = 100
             for i in 1...steps {
-                try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000 / UInt64(steps)))
+                try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000 / Double(steps)))
                 if Task.isCancelled { return }
                 progress = Double(i) / Double(steps)
             }
@@ -534,7 +534,7 @@ final class PlayerBattleViewModel {
         clipTask = Task { @MainActor in
             let steps = 100
             for i in 1...steps {
-                try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000 / UInt64(steps)))
+                try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000 / Double(steps)))
                 if Task.isCancelled { return }
                 progress = Double(i) / Double(steps)
             }
