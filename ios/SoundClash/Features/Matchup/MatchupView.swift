@@ -226,6 +226,7 @@ final class MatchupViewModel {
 struct MatchupView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel = MatchupViewModel()
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         ZStack {
@@ -270,6 +271,7 @@ struct MatchupView: View {
                         .background(Color.white.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .foregroundStyle(.white)
+                        .focused($searchFocused)
                         .onChange(of: viewModel.searchText) { _, new in
                             viewModel.searchChanged(new)
                         }
@@ -286,7 +288,11 @@ struct MatchupView: View {
                             } else {
                                 LazyVStack(spacing: 0) {
                                     ForEach(viewModel.artistResults) { hit in
-                                        Button { viewModel.tapArtist(hit) } label: {
+                                        Button {
+                                            viewModel.tapArtist(hit)
+                                            viewModel.searchText = ""
+                                            searchFocused = false
+                                        } label: {
                                             HStack(spacing: 12) {
                                                 artistThumb(url: hit.artworkURL, name: hit.name, size: 52)
                                                 Text(hit.name)
