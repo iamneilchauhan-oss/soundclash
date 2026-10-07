@@ -100,6 +100,8 @@ final class DemoMusicProvider: MusicProvider {
         }
     }
 
+    func pausePreview() { previewTask?.cancel() }
+
     func pause() {
         scheduledTask?.cancel()
         previewTask?.cancel()

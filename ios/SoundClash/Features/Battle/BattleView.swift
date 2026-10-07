@@ -795,7 +795,7 @@ final class PlayerBattleViewModel {
     func previewTrack(_ track: SCTrack) {
         if SCPreview.isActive { return }
         if previewingTrackId == track.id {
-            MusicMode.provider.pause()
+            MusicMode.provider.pausePreview()
             previewingTrackId = nil
             return
         }
