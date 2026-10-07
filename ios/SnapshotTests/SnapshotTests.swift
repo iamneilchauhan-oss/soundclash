@@ -1,3 +1,8 @@
+// NOTE: this file is only meant for the SoundClashSnapshots UI-test target
+// (local snapshot runs / CI). If it ever gets compiled into the app target
+// itself, XCTest isn't resolvable there — so the whole file compiles to
+// empty instead of breaking the build.
+#if canImport(XCTest)
 import SwiftUI
 import UIKit
 import XCTest
@@ -86,3 +91,4 @@ final class SnapshotTests: XCTestCase {
         }
     }
 }
+#endif
