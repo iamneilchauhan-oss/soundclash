@@ -217,6 +217,8 @@ final class AppleMusicProvider: MusicProvider {
         player.playbackTime
     }
 
+    func pausePreview() { stopPreview() }
+
     // MARK: - Previews (AVPlayer + ducking)
 
     /// Plays the real catalog preview clip (~30s, usually the hook) via
