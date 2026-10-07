@@ -6,21 +6,181 @@ final class MatchupViewModel {
     var appState: AppState!
     var searchText = ""
     var assigningSide: Side = .red
-    var redArtist: String? = MockData.redCompetitor.artistPick
-    var blueArtist: String? = MockData.blueCompetitor.artistPick
+
+    // MARK: - My pick (local, pre-lock)
+
+    var myPick: String?
+    var myPickArtwork: URL?
+    var myLocked = false
+
+    // MARK: - Solo fallback (preview or single competitor): I drive both sides
+
+    var redArtist: String?
+    var blueArtist: String?
     var redLocked = false
     var blueLocked = false
-
-    func configure(_ state: AppState) { appState = state }
+    var artwork: [Side: URL?] = [.red: nil, .blue: nil]
 
     var artistResults: [ArtistHit] = []
     var isSearching = false
     private var searchTask: Task<Void, Never>?
+    private var proceedTask: Task<Void, Never>?
 
-    /// Artwork for the currently picked artists (Apple Music, when available).
-    var artwork: [Side: URL?] = [.red: nil, .blue: nil]
+    func configure(_ state: AppState) {
+        appState = state
+        guard !SCPreview.isActive else {
+            redArtist = MockData.redCompetitor.artistPick
+            blueArtist = MockData.blueCompetitor.artistPick
+            return
+        }
+        // Assign sides deterministically so every device agrees: earliest
+        // competitor takes red. (Coin toss re-assigns the same values later.)
+        let competitors = state.participants
+            .filter { $0.role == .competitor }
+            .sorted { $0.createdAt < $1.createdAt }
+        if competitors.count >= 1 { state.redCompetitorId = competitors[0].id }
+        if competitors.count >= 2 { state.blueCompetitorId = competitors[1].id }
+        if let myId = state.myParticipantId {
+            state.mySide = (myId == state.blueCompetitorId) ? .blue : .red
+        }
+        assigningSide = state.mySide
+    }
 
-    /// Debounced live artist search — no presets, just the catalog.
+    // MARK: - Sides & opponents
+
+    /// Solo when I'm the only competitor (or preview) — I drive both sides.
+    var isSolo: Bool {
+        if SCPreview.isActive { return true }
+        let count = (appState?.participants ?? []).count(where: { $0.role == .competitor })
+        return count < 2
+    }
+
+    var mySide: Side { appState?.mySide ?? .red }
+
+    private var opponentId: UUID? {
+        guard let appState else { return nil }
+        return mySide == .red ? appState.blueCompetitorId : appState.redCompetitorId
+    }
+
+    private var opponent: Participant? {
+        guard let id = opponentId else { return nil }
+        return appState?.participants.first(where: { $0.id == id })
+    }
+
+    /// The opponent's pick, synced via their participant row (set on lock).
+    var opponentArtist: String? { opponent?.artistPick }
+    var opponentLocked: Bool { opponentArtist != nil }
+
+    /// I can only touch my own side — unless solo, where I drive both.
+    func canPick(_ side: Side) -> Bool {
+        isSolo || side == mySide
+    }
+
+    // MARK: - Display
+
+    func artist(for side: Side) -> String? {
+        if isSolo { return side == .red ? redArtist : blueArtist }
+        if side == mySide { return myLocked ? appState?.myParticipant?.artistPick : myPick }
+        return opponentArtist
+    }
+
+    func artworkURL(for side: Side) -> URL? {
+        if isSolo { return artwork[side] ?? nil }
+        if side == mySide { return myPickArtwork }
+        return nil // opponent artwork: name-only for now (no DB column yet)
+    }
+
+    func isLocked(_ side: Side) -> Bool {
+        if isSolo { return side == .red ? redLocked : blueLocked }
+        if side == mySide { return myLocked }
+        return opponentLocked
+    }
+
+    /// Locks secured: mine (local) + opponent's (synced).
+    var lockCount: Int {
+        if isSolo { return (redLocked ? 1 : 0) + (blueLocked ? 1 : 0) }
+        return (myLocked ? 1 : 0) + (opponentLocked ? 1 : 0)
+    }
+
+    var lockLabel: String { "\(lockCount)/2 LOCKED IN" }
+
+    // MARK: - Picking
+
+    func tapArtist(_ hit: ArtistHit) {
+        if isSolo {
+            if assigningSide == .red {
+                guard !redLocked else { return }
+                redArtist = hit.name; artwork[.red] = hit.artworkURL
+            } else {
+                guard !blueLocked else { return }
+                blueArtist = hit.name; artwork[.blue] = hit.artworkURL
+            }
+            assigningSide = assigningSide.opponent
+            return
+        }
+        // Real mode: I only ever pick for my own side.
+        guard !myLocked else { return }
+        myPick = hit.name
+        myPickArtwork = hit.artworkURL
+    }
+
+    func selectSide(_ side: Side) {
+        guard canPick(side) else { return }
+        assigningSide = side
+    }
+
+    /// Swap the two sides' artists. Solo-only — in a real battle each player
+    /// owns their side, so there's nothing to swap. Blocked once locked.
+    var canSwap: Bool {
+        isSolo && !redLocked && !blueLocked
+    }
+
+    func swapSides() {
+        guard canSwap else { return }
+        (redArtist, blueArtist) = (blueArtist, redArtist)
+        (artwork[.red], artwork[.blue]) = (artwork[.blue], artwork[.red])
+    }
+
+    func lock(_ side: Side) {
+        if isSolo {
+            guard artist(for: side) != nil, !isLocked(side) else { return }
+            if side == .red { redLocked = true } else { blueLocked = true }
+            if let artist = artist(for: side) { appState.matchupArtists[side] = artist }
+            checkAutoProceed()
+            return
+        }
+        // Real mode: I lock only my side; the pick syncs to my participant row.
+        guard side == mySide, let pick = myPick, !myLocked else { return }
+        myLocked = true
+        appState.matchupArtists[mySide] = pick
+        guard !SCPreview.isActive,
+              let id = appState.myParticipantId else {
+            checkAutoProceed()
+            return
+        }
+        Task {
+            do {
+                try await SupabaseService.shared.setArtistPick(participantId: id, artist: pick)
+            } catch {
+                appState.backendError = error.localizedDescription
+            }
+            checkAutoProceed()
+        }
+    }
+
+    /// When both locks land, hold a beat then proceed on its own.
+    func checkAutoProceed() {
+        proceedTask?.cancel()
+        guard lockCount == 2 else { return }
+        proceedTask = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            cont()
+        }
+    }
+
+    // MARK: - Search (unchanged)
+
     func searchChanged(_ text: String) {
         searchTask?.cancel()
         let q = text.trimmingCharacters(in: .whitespaces)
@@ -44,77 +204,15 @@ final class MatchupViewModel {
         }
     }
 
-    func artist(for side: Side) -> String? {
-        side == .red ? redArtist : blueArtist
-    }
+    // MARK: - Continue
 
-    func isLocked(_ side: Side) -> Bool {
-        side == .red ? redLocked : blueLocked
-    }
-
-    func tapArtist(_ hit: ArtistHit) {
-        if assigningSide == .red {
-            guard !redLocked else { return }
-            redArtist = hit.name
-            artwork[.red] = hit.artworkURL
-        } else {
-            guard !blueLocked else { return }
-            blueArtist = hit.name
-            artwork[.blue] = hit.artworkURL
-        }
-        // Auto-advance to the other corner so both picks take two taps.
-        assigningSide = assigningSide.opponent
-    }
-
-    /// Swap the two sides' artists (and their artwork). Blocked once either
-    /// side locks — the swap is for the "wrong side" oops before lock-in.
-    /// (Previously the swap ignored locks, so the banner could change after
-    /// locking while the code kept the locked pick.)
-    var canSwap: Bool { !redLocked && !blueLocked }
-
-    func swapSides() {
-        guard canSwap else { return }
-        (redArtist, blueArtist) = (blueArtist, redArtist)
-        (artwork[.red], artwork[.blue]) = (artwork[.blue], artwork[.red])
-    }
-
-    func lock(_ side: Side) {
-        guard artist(for: side) != nil else { return }
-        if side == .red { redLocked = true } else { blueLocked = true }
-        // Keep a local copy of every locked pick — solo/phantom opponents
-        // never get a participant row, but the battle still needs their artist.
-        if let artist = artist(for: side) {
-            appState.matchupArtists[side] = artist
-        }
-        // Real mode: lock my artist pick on my participant row — but ONLY when
-        // locking my own side. (Prototype simplification: the matchup screen
-        // is driven from one device, like the mock; sides map to competitor
-        // participants at the coin toss. In solo testing one device locks
-        // both sides, and writing the opponent's artist to my row would
-        // corrupt my own pick.)
-        guard !SCPreview.isActive,
-              side == appState.mySide,
-              let id = appState.myParticipantId,
-              let artist = artist(for: side) else { return }
-        Task {
-            do {
-                try await SupabaseService.shared.setArtistPick(participantId: id, artist: artist)
-            } catch {
-                appState.backendError = error.localizedDescription
-            }
-        }
-    }
-
-    var canContinue: Bool {
-        redLocked && blueLocked && redArtist != nil && blueArtist != nil
-    }
+    var canContinue: Bool { lockCount == 2 }
 
     func cont() {
         guard !SCPreview.isActive, let roomId = appState.roomId else {
             appState.go(.coinToss)
             return
         }
-        // Real mode: the room status drives every device (AppState.syncFromRoom).
         Task {
             do {
                 try await SupabaseService.shared.advanceRoomStatus(roomId: roomId, status: .coinToss)
@@ -212,12 +310,15 @@ struct MatchupView: View {
                 .padding(12)
                 .background(.black)
 
-                Button("CONTINUE TO COIN TOSS") { viewModel.cont() }
+                Button(viewModel.lockLabel) { viewModel.cont() }
                     .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 20))
                     .disabled(!viewModel.canContinue)
                     .opacity(viewModel.canContinue ? 1 : 0.4)
                     .padding(16)
                     .background(.black)
+                    .onChange(of: viewModel.lockCount) { _, _ in
+                        viewModel.checkAutoProceed()
+                    }
             }
         }
         .task { viewModel.configure(appState) }
@@ -229,14 +330,17 @@ struct MatchupView: View {
     @ViewBuilder
     private func fighterHalf(side: Side) -> some View {
         let artist = viewModel.artist(for: side)
-        let artworkURL = viewModel.artwork[side] ?? nil
+        let artworkURL = viewModel.artworkURL(for: side)
         let isLocked = viewModel.isLocked(side)
-        let isAssigning = viewModel.assigningSide == side
+        let mine = viewModel.canPick(side)
+        let isAssigning = mine && viewModel.assigningSide == side
+        // Empty-state copy: my side invites a pick, theirs shows waiting.
+        let emptyCopy = mine ? "TAP TO PICK" : "WAITING FOR PICK"
 
         VStack(spacing: 0) {
             Spacer(minLength: 12)
 
-            Button { viewModel.assigningSide = side } label: {
+            Button { viewModel.selectSide(side) } label: {
                 VStack(spacing: 12) {
                     Text(appState.name(for: side).uppercased())
                         .font(VerzuzTheme.display(15))
@@ -267,7 +371,7 @@ struct MatchupView: View {
                     )
                     .shadow(radius: 8)
 
-                    Text(artist ?? "TAP TO PICK")
+                    Text(artist ?? emptyCopy)
                         .font(VerzuzTheme.display(30))
                         .foregroundStyle(.white)
                         .shadow(radius: 3)
@@ -280,6 +384,7 @@ struct MatchupView: View {
             Spacer(minLength: 12)
 
             Button { viewModel.lock(side) } label: {
+
                 HStack(spacing: 6) {
                     Image(systemName: isLocked ? "lock.fill" : "lock.open")
                         .font(.system(size: 14, weight: .bold))
@@ -291,10 +396,11 @@ struct MatchupView: View {
                 .padding(.vertical, 14)
                 .background(isLocked ? .white : .black)
             }
-            .disabled(isLocked || artist == nil)
-            .opacity((isLocked || artist == nil) ? 0.85 : 1)
+            .disabled(!mine || isLocked || artist == nil)
+            .opacity(mine ? ((isLocked || artist == nil) ? 0.85 : 1) : 0.45)
         }
         .frame(maxWidth: .infinity)
+        .opacity(mine ? 1 : 0.75)
         .padding(.horizontal, 10)
         .padding(.bottom, 12)
     }

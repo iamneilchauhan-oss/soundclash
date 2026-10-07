@@ -142,6 +142,11 @@ final class AppState {
     // Real-backend session state (nil in previews / mock mode).
     var roomId: UUID? = nil
     var myParticipantId: UUID? = nil
+
+    var myParticipant: Participant? {
+        guard let id = myParticipantId else { return nil }
+        return participants.first(where: { $0.id == id })
+    }
     var currentRoundId: UUID? = nil
     var currentRoundNumber = 5
     var redCompetitorId: UUID? = nil
