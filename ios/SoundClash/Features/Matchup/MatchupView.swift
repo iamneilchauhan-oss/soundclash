@@ -33,16 +33,9 @@ final class MatchupViewModel {
             blueArtist = MockData.blueCompetitor.artistPick
             return
         }
-        // Assign sides deterministically so every device agrees: earliest
-        // competitor takes red. (Coin toss re-assigns the same values later.)
-        let competitors = state.participants
-            .filter { $0.role == .competitor }
-            .sorted { $0.createdAt < $1.createdAt }
-        if competitors.count >= 1 { state.redCompetitorId = competitors[0].id }
-        if competitors.count >= 2 { state.blueCompetitorId = competitors[1].id }
-        if let myId = state.myParticipantId {
-            state.mySide = (myId == state.blueCompetitorId) ? .blue : .red
-        }
+        // Sides were decided in the lobby (first player in the column = red).
+        // Recompute here as a fallback for devices that didn't tap START.
+        if state.redCompetitorId == nil { state.assignSidesFromLobby() }
         assigningSide = state.mySide
     }
 
@@ -67,9 +60,9 @@ final class MatchupViewModel {
         return appState?.participants.first(where: { $0.id == id })
     }
 
-    /// The opponent's pick, synced via their participant row (set on lock).
+    /// The opponent's pick, synced live via their participant row.
     var opponentArtist: String? { opponent?.artistPick }
-    var opponentLocked: Bool { opponentArtist != nil }
+    var opponentLocked: Bool { opponent?.artistLocked == true }
 
     /// I can only touch my own side — unless solo, where I drive both.
     func canPick(_ side: Side) -> Bool {
@@ -118,10 +111,15 @@ final class MatchupViewModel {
             assigningSide = assigningSide.opponent
             return
         }
-        // Real mode: I only ever pick for my own side.
-        guard !myLocked else { return }
+        // Real mode: I only ever pick for my own side. Every select
+        // syncs live so the opponent sees my pick as I browse.
+        guard !myLocked, !SCPreview.isActive,
+              let id = appState.myParticipantId else { return }
         myPick = hit.name
         myPickArtwork = hit.artworkURL
+        Task {
+            try? await SupabaseService.shared.setArtistPick(participantId: id, artist: hit.name)
+        }
     }
 
     func selectSide(_ side: Side) {
@@ -149,18 +147,19 @@ final class MatchupViewModel {
             checkAutoProceed()
             return
         }
-        // Real mode: I lock only my side; the pick syncs to my participant row.
-        guard side == mySide, let pick = myPick, !myLocked else { return }
-        myLocked = true
-        appState.matchupArtists[mySide] = pick
-        guard !SCPreview.isActive,
+        // Real mode: I lock only my side. The pick already synced live;
+        // the lock is the explicit "I'm done."
+        guard side == mySide, myPick != nil, !myLocked,
+              !SCPreview.isActive,
               let id = appState.myParticipantId else {
             checkAutoProceed()
             return
         }
+        myLocked = true
+        if let pick = myPick { appState.matchupArtists[mySide] = pick }
         Task {
             do {
-                try await SupabaseService.shared.setArtistPick(participantId: id, artist: pick)
+                try await SupabaseService.shared.setArtistLocked(participantId: id, locked: true)
             } catch {
                 appState.backendError = error.localizedDescription
             }

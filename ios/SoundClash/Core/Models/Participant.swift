@@ -9,6 +9,7 @@ struct Participant: Codable, Identifiable, Hashable, Sendable {
     var role: ParticipantRole
     var avatar: String?
     var artistPick: String?
+    var artistLocked: Bool
     var isReady: Bool
     var createdAt: Date
 
@@ -19,8 +20,23 @@ struct Participant: Codable, Identifiable, Hashable, Sendable {
         case role
         case avatar
         case artistPick = "artist_pick"
+        case artistLocked = "artist_locked"
         case isReady = "is_ready"
         case createdAt = "created_at"
+    }
+
+    // artist_locked is new (migration 003); tolerate rows from before it existed.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        roomId = try c.decode(UUID.self, forKey: .roomId)
+        username = try c.decode(String.self, forKey: .username)
+        role = try c.decode(ParticipantRole.self, forKey: .role)
+        avatar = try c.decodeIfPresent(String.self, forKey: .avatar)
+        artistPick = try c.decodeIfPresent(String.self, forKey: .artistPick)
+        artistLocked = try c.decodeIfPresent(Bool.self, forKey: .artistLocked) ?? false
+        isReady = try c.decode(Bool.self, forKey: .isReady)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
     }
 }
 

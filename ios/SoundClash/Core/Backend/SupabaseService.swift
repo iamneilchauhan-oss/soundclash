@@ -193,19 +193,34 @@ final class SupabaseService {
     }
 
     /// Locks a competitor's artist pick (also marks them ready).
+    /// Live-sync the artist pick on every select. (Lock-in is separate.)
     func setArtistPick(participantId: UUID, artist: String) async throws {
         try checkConfigured()
         struct Payload: Encodable {
             var artistPick: String
-            var isReady: Bool
             enum CodingKeys: String, CodingKey {
                 case artistPick = "artist_pick"
-                case isReady = "is_ready"
             }
         }
         let _: PostgrestResponse<Void> = try await client
             .from("participants")
-            .update(Payload(artistPick: artist, isReady: true))
+            .update(Payload(artistPick: artist))
+            .eq("id", value: participantId.uuidString)
+            .execute()
+    }
+
+    /// Explicit lock-in: "I'm done picking." Separate from the live pick sync.
+    func setArtistLocked(participantId: UUID, locked: Bool) async throws {
+        try checkConfigured()
+        struct Payload: Encodable {
+            var artistLocked: Bool
+            enum CodingKeys: String, CodingKey {
+                case artistLocked = "artist_locked"
+            }
+        }
+        let _: PostgrestResponse<Void> = try await client
+            .from("participants")
+            .update(Payload(artistLocked: locked))
             .eq("id", value: participantId.uuidString)
             .execute()
     }

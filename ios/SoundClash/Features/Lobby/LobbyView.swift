@@ -32,7 +32,7 @@ final class LobbyViewModel {
                 let name = state.username.isEmpty ? "You" : state.username
                 state.participants.insert(
                     Participant(id: meId, roomId: UUID(), username: name, role: .host,
-                                avatar: nil, artistPick: nil, isReady: false, createdAt: Date()),
+                                avatar: nil, artistPick: nil, artistLocked: false, isReady: false, createdAt: Date()),
                     at: 0
                 )
             }
@@ -144,7 +144,8 @@ final class LobbyViewModel {
     func start() {
         guard let appState else { return }
         if let role = myParticipant?.role { appState.myRole = role }
-        appState.mySide = .red // mock: local competitor always takes the red corner
+        // Sides are decided here, from the player column: first in = red.
+        appState.assignSidesFromLobby()
         guard !SCPreview.isActive, let roomId = appState.roomId else {
             appState.go(.matchup)
             return

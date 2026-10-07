@@ -68,9 +68,9 @@ enum MockData {
         avatar: "🎧", artistPick: "Usher", isReady: true, createdAt: Date()
     )
     static let judges: [Participant] = [
-        Participant(id: UUID(), roomId: roomId, username: "Kai", role: .judge, avatar: "🎚️", artistPick: nil, isReady: true, createdAt: Date()),
-        Participant(id: UUID(), roomId: roomId, username: "Jules", role: .judge, avatar: "🎙️", artistPick: nil, isReady: true, createdAt: Date()),
-        Participant(id: UUID(), roomId: roomId, username: "Rae", role: .judge, avatar: "📀", artistPick: nil, isReady: true, createdAt: Date()),
+        Participant(id: UUID(), roomId: roomId, username: "Kai", role: .judge, avatar: "🎚️", artistPick: nil, artistLocked: false, isReady: true, createdAt: Date()),
+        Participant(id: UUID(), roomId: roomId, username: "Jules", role: .judge, avatar: "🎙️", artistPick: nil, artistLocked: false, isReady: true, createdAt: Date()),
+        Participant(id: UUID(), roomId: roomId, username: "Rae", role: .judge, avatar: "📀", artistPick: nil, artistLocked: false, isReady: true, createdAt: Date()),
     ]
 
     static var participants: [Participant] {
@@ -146,6 +146,20 @@ final class AppState {
     var myParticipant: Participant? {
         guard let id = myParticipantId else { return nil }
         return participants.first(where: { $0.id == id })
+    }
+
+    /// Decides red/blue from the lobby's player column: first player in the
+    /// column takes red. Deterministic from the participant list, so every
+    /// device computes the same assignment.
+    func assignSidesFromLobby() {
+        let players = participants
+            .filter { $0.role == .competitor }
+            .sorted { $0.createdAt < $1.createdAt }
+        if players.count >= 1 { redCompetitorId = players[0].id }
+        if players.count >= 2 { blueCompetitorId = players[1].id }
+        if let myId = myParticipantId {
+            mySide = (myId == blueCompetitorId) ? .blue : .red
+        }
     }
     var currentRoundId: UUID? = nil
     var currentRoundNumber = 5
