@@ -25,6 +25,21 @@ struct Participant: Codable, Identifiable, Hashable, Sendable {
         case createdAt = "created_at"
     }
 
+    // Memberwise init (a custom init(from:) suppresses the synthesized one).
+    init(id: UUID, roomId: UUID, username: String, role: ParticipantRole,
+         avatar: String?, artistPick: String?, artistLocked: Bool,
+         isReady: Bool, createdAt: Date) {
+        self.id = id
+        self.roomId = roomId
+        self.username = username
+        self.role = role
+        self.avatar = avatar
+        self.artistPick = artistPick
+        self.artistLocked = artistLocked
+        self.isReady = isReady
+        self.createdAt = createdAt
+    }
+
     // artist_locked is new (migration 003); tolerate rows from before it existed.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
