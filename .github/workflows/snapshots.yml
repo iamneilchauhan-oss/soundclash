@@ -1,0 +1,54 @@
+# Renders true 1:1 PNG snapshots of every SoundClash screen on a macOS runner
+# and commits them to design/snapshots/ for the design gallery.
+#
+# Trigger: manually from the Actions tab ("Run workflow"). The job generates
+# the .xcodeproj via XcodeGen (it's gitignored), builds, runs the snapshot
+# tests in mock mode (no network/device services), and pushes the PNGs back
+# with the workflow's own GITHUB_TOKEN — no personal token needed.
+name: Design snapshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/snapshots.yml'
+      - 'ios/SnapshotTests/**'
+      - 'project.yml'
+      # NOTE: design/snapshots/** is deliberately excluded — the job commits
+      # PNGs there, and including it would retrigger the workflow in a loop.
+
+jobs:
+  snapshots:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Render snapshots
+        run: |
+          xcodebuild test \
+            -project SoundClash.xcodeproj \
+            -scheme SoundClash \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -only-testing:SoundClashSnapshots \
+            -resultBundlePath /tmp/snapshot-results
+        env:
+          SNAPSHOT_DIR: ${{ github.workspace }}/design/snapshots
+
+      - name: Commit snapshots
+        run: |
+          git config user.name "soundclash-snapshots"
+          git config user.email "soundclash-snapshots@local"
+          git add design/snapshots
+          if git diff --cached --quiet; then
+            echo "No snapshot changes to commit."
+          else
+            git commit -m "Design snapshots $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          fi
