@@ -115,6 +115,10 @@ protocol MusicProvider: AnyObject {
 
     func pause()
 
+    /// Stops a preview without touching battle playback. The pause button
+    /// on a previewing track must not silence the battle.
+    func pausePreview()
+
     /// Coarse re-sync primitive: restarts the current track from the top.
     /// (Public MusicKit exposes no seek API, so there is no fine-grained seek.)
     func restart() async throws

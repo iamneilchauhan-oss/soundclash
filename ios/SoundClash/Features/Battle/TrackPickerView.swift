@@ -11,7 +11,7 @@ struct TrackPickerView: View {
     let canPlay: Bool
     let onPlay: () -> Void
     let onPreview: (SCTrack) -> Void
-    var previewingId: String?
+    var previewingTrackId: String?
 
     @State private var tab: PickerTab = .search
     @State private var searchText = ""
@@ -24,7 +24,7 @@ struct TrackPickerView: View {
     @State private var isLoadingAlbums = false
     @State private var cheatEntries: [CheatEntry] = []
 
-    private var searchTask: Task<Void, Never>?
+    @State private var searchTask: Task<Void, Never>?
 
     enum PickerTab: String, CaseIterable {
         case search = "SONG SEARCH"
@@ -273,7 +273,7 @@ struct TrackPickerView: View {
                 Button {
                     onPreview(track)
                 } label: {
-                    Image(systemName: previewingId == track.id ? "pause.fill" : "play.fill")
+                    Image(systemName: previewingTrackId == track.id ? "pause.fill" : "play.fill")
                         .font(.system(size: 13))
                         .foregroundStyle(.white)
                         .padding(9)
