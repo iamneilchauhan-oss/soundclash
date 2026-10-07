@@ -52,19 +52,31 @@ struct MenuView: View {
 
                 Spacer()
 
-                Button { viewModel.play() } label: {
-                    Text("PLAY")
-                }
-                .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white))
-                .padding(.horizontal, 28)
+                HStack(spacing: 14) {
+                    Button { viewModel.play() } label: {
+                        Text("PLAY")
+                    }
+                    .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 24))
 
-                Button { showSettings = true } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(accent.color)
-                        .padding(14)
+                    Button {
+                        // Placeholder — destination TBD.
+                    } label: {
+                        Text("PLACEHOLDER")
+                    }
+                    .buttonStyle(VerzuzButtonStyle(fill: accent.color, textColor: accent.onColor, fontSize: 24))
                 }
-                .padding(.top, 18)
+                .padding(.horizontal, 24)
+
+                HStack {
+                    Spacer()
+                    Button { showSettings = true } label: {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(accent.color)
+                            .padding(16)
+                    }
+                    .padding(.trailing, 8)
+                }
                 .padding(.bottom, 8)
             }
         }

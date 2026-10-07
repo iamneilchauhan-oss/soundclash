@@ -116,13 +116,13 @@ struct VMark: View {
     private func leftStroke(in r: CGRect) -> Path {
         let w = r.width, h = r.height
         var p = Path()
-        p.move(to: CGPoint(x: 0.03*w, y: 0.02*h))
-        p.addLine(to: CGPoint(x: 0.33*w, y: 0.02*h))
+        // Flared sharp tip at top-outer, heavy bar tapering to the vertex,
+        // lightning notch on the inner edge.
+        p.move(to: CGPoint(x: 0.00*w, y: 0.02*h))
         p.addLine(to: CGPoint(x: 0.30*w, y: 0.10*h))
-        p.addLine(to: CGPoint(x: 0.40*w, y: 0.14*h))
-        p.addLine(to: CGPoint(x: 0.36*w, y: 0.40*h))
-        p.addLine(to: CGPoint(x: 0.46*w, y: 0.50*h))
-        p.addLine(to: CGPoint(x: 0.36*w, y: 0.60*h))
+        p.addLine(to: CGPoint(x: 0.37*w, y: 0.36*h))
+        p.addLine(to: CGPoint(x: 0.47*w, y: 0.44*h))
+        p.addLine(to: CGPoint(x: 0.37*w, y: 0.52*h))
         p.addLine(to: CGPoint(x: 0.50*w, y: 1.00*h))
         p.addLine(to: CGPoint(x: 0.28*w, y: 1.00*h))
         p.closeSubpath()
@@ -132,13 +132,11 @@ struct VMark: View {
     private func rightStroke(in r: CGRect) -> Path {
         let w = r.width, h = r.height
         var p = Path()
-        p.move(to: CGPoint(x: 0.97*w, y: 0.02*h))
-        p.addLine(to: CGPoint(x: 0.67*w, y: 0.02*h))
+        p.move(to: CGPoint(x: 1.00*w, y: 0.02*h))
         p.addLine(to: CGPoint(x: 0.70*w, y: 0.10*h))
-        p.addLine(to: CGPoint(x: 0.60*w, y: 0.14*h))
-        p.addLine(to: CGPoint(x: 0.64*w, y: 0.40*h))
-        p.addLine(to: CGPoint(x: 0.54*w, y: 0.50*h))
-        p.addLine(to: CGPoint(x: 0.64*w, y: 0.60*h))
+        p.addLine(to: CGPoint(x: 0.63*w, y: 0.36*h))
+        p.addLine(to: CGPoint(x: 0.53*w, y: 0.44*h))
+        p.addLine(to: CGPoint(x: 0.63*w, y: 0.52*h))
         p.addLine(to: CGPoint(x: 0.50*w, y: 1.00*h))
         p.addLine(to: CGPoint(x: 0.72*w, y: 1.00*h))
         p.closeSubpath()
