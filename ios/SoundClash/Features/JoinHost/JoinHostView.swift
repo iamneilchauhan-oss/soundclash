@@ -43,6 +43,7 @@ final class JoinHostViewModel {
         rememberUsername(name)
         appState.username = name
         appState.roomCode = code
+        appState.amHost = false
         guard !SCPreview.isActive else { appState.go(.lobby); return }
         // Real mode: validate the code against rooms, then insert this device's
         // participant row (role/avatar get finalized in the lobby).
@@ -90,6 +91,7 @@ final class JoinHostViewModel {
         let name = username.trimmingCharacters(in: .whitespaces)
         rememberUsername(name)
         appState.username = name
+        appState.amHost = true
         guard !SCPreview.isActive else {
             let code = String((0..<6).map { _ in codeAlphabet.randomElement()! })
             appState.roomCode = code

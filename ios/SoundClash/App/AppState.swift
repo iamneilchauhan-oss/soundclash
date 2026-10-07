@@ -163,6 +163,8 @@ final class AppState {
         path.removeAll()
         finalRoundWinner = nil
         // Reset real-backend session state for a clean next battle.
+        amHost = false
+        knownParticipantIds = []
         roomId = nil
         myParticipantId = nil
         currentRoundId = nil
@@ -174,6 +176,15 @@ final class AppState {
         onPlaysChanged = nil
         onVotesChanged = nil
     }
+
+    // MARK: - Host powers
+
+    /// True when this device created the room. Host powers live here — not in
+    /// the participant's role slot — so a host who assigns themselves as a
+    /// player keeps the ability to assign roles and start the battle.
+    var amHost = false
+    /// Participant IDs already seen; auto-assign only fires for new arrivals.
+    private var knownParticipantIds = Set<UUID>()
 
     // MARK: - Room following (real mode)
 
@@ -188,6 +199,7 @@ final class AppState {
                 // Seed immediately so screens never render stale mock data.
                 if let list = try? await SupabaseService.shared.fetchParticipants(roomId: roomId) {
                     participants = list
+                    knownParticipantIds = Set(list.map(\.id))
                 }
                 try await SupabaseService.shared.subscribeToRoom(roomId: roomId) { [weak self] event in
                     guard let self else { return }
@@ -216,6 +228,7 @@ final class AppState {
             guard let roomId else { return }
             if let list = try? await SupabaseService.shared.fetchParticipants(roomId: roomId) {
                 participants = list
+                autoAssignArrivals()
             }
         case .plays:
             onPlaysChanged?()
@@ -223,6 +236,31 @@ final class AppState {
             onVotesChanged?()
         case .rounds:
             break
+        }
+    }
+
+    /// Host-side: new arrivals auto-fill the first open slot (players, then
+    /// judges); overflow stays in the audience. Only audience members move —
+    /// manual assignments are never overridden.
+    private func autoAssignArrivals() {
+        let ids = Set(participants.map(\.id))
+        let newIds = ids.subtracting(knownParticipantIds)
+        knownParticipantIds = ids
+        guard amHost, !SCPreview.isActive, !newIds.isEmpty else { return }
+        var playersOpen = max(0, 2 - participants.count(where: { $0.role == .competitor }))
+        var judgesOpen = max(0, 3 - participants.count(where: { $0.role == .judge }))
+        for id in newIds {
+            guard let p = participants.first(where: { $0.id == id }),
+                  p.role == .audience else { continue }
+            let role: ParticipantRole
+            if playersOpen > 0 { role = .competitor; playersOpen -= 1 }
+            else if judgesOpen > 0 { role = .judge; judgesOpen -= 1 }
+            else { continue }
+            Task {
+                try? await SupabaseService.shared.updateLobbyProfile(
+                    id: id, role: role, avatar: p.avatar ?? "", isReady: p.isReady
+                )
+            }
         }
     }
 
