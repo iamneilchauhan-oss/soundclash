@@ -106,39 +106,60 @@ struct VMark: View {
         GeometryReader { geo in
             let rect = CGRect(origin: .zero, size: geo.size)
             ZStack {
-                leftStroke(in: rect).fill(left)
-                rightStroke(in: rect).fill(right)
+                tracedLeft(in: rect).fill(left)
+                tracedRight(in: rect).fill(right)
             }
         }
         .aspectRatio(1, contentMode: .fit)
     }
 
-    private func leftStroke(in r: CGRect) -> Path {
+    private func tracedLeft(in r: CGRect) -> Path {
         let w = r.width, h = r.height
         var p = Path()
-        // Flared sharp tip at top-outer, heavy bar tapering to the vertex,
-        // lightning notch on the inner edge.
-        p.move(to: CGPoint(x: 0.00*w, y: 0.02*h))
-        p.addLine(to: CGPoint(x: 0.30*w, y: 0.10*h))
-        p.addLine(to: CGPoint(x: 0.37*w, y: 0.36*h))
-        p.addLine(to: CGPoint(x: 0.47*w, y: 0.44*h))
-        p.addLine(to: CGPoint(x: 0.37*w, y: 0.52*h))
-        p.addLine(to: CGPoint(x: 0.50*w, y: 1.00*h))
-        p.addLine(to: CGPoint(x: 0.28*w, y: 1.00*h))
+        p.move(to: CGPoint(x: 0.190*w, y: 0.000*h))
+        p.addLine(to: CGPoint(x: 0.184*w, y: 0.016*h))
+        p.addLine(to: CGPoint(x: 0.272*w, y: 0.341*h))
+        p.addLine(to: CGPoint(x: 0.272*w, y: 0.368*h))
+        p.addLine(to: CGPoint(x: 0.228*w, y: 0.407*h))
+        p.addLine(to: CGPoint(x: 0.283*w, y: 0.429*h))
+        p.addLine(to: CGPoint(x: 0.299*w, y: 0.451*h))
+        p.addLine(to: CGPoint(x: 0.382*w, y: 0.769*h))
+        p.addLine(to: CGPoint(x: 0.500*w, y: 0.775*h))
+        p.addLine(to: CGPoint(x: 0.500*w, y: 1.000*h))
+        p.addLine(to: CGPoint(x: 0.500*w, y: 0.775*h))
+        p.addLine(to: CGPoint(x: 0.497*w, y: 0.769*h))
+        p.addLine(to: CGPoint(x: 0.497*w, y: 0.593*h))
+        p.addLine(to: CGPoint(x: 0.459*w, y: 0.445*h))
+        p.addLine(to: CGPoint(x: 0.393*w, y: 0.407*h))
+        p.addLine(to: CGPoint(x: 0.393*w, y: 0.396*h))
+        p.addLine(to: CGPoint(x: 0.437*w, y: 0.368*h))
+        p.addLine(to: CGPoint(x: 0.437*w, y: 0.341*h))
+        p.addLine(to: CGPoint(x: 0.360*w, y: 0.005*h))
+        p.addLine(to: CGPoint(x: 0.343*w, y: 0.000*h))
         p.closeSubpath()
         return p
     }
 
-    private func rightStroke(in r: CGRect) -> Path {
+    private func tracedRight(in r: CGRect) -> Path {
         let w = r.width, h = r.height
         var p = Path()
-        p.move(to: CGPoint(x: 1.00*w, y: 0.02*h))
-        p.addLine(to: CGPoint(x: 0.70*w, y: 0.10*h))
-        p.addLine(to: CGPoint(x: 0.63*w, y: 0.36*h))
-        p.addLine(to: CGPoint(x: 0.53*w, y: 0.44*h))
-        p.addLine(to: CGPoint(x: 0.63*w, y: 0.52*h))
-        p.addLine(to: CGPoint(x: 0.50*w, y: 1.00*h))
-        p.addLine(to: CGPoint(x: 0.72*w, y: 1.00*h))
+        p.move(to: CGPoint(x: 0.651*w, y: 0.000*h))
+        p.addLine(to: CGPoint(x: 0.640*w, y: 0.005*h))
+        p.addLine(to: CGPoint(x: 0.563*w, y: 0.341*h))
+        p.addLine(to: CGPoint(x: 0.563*w, y: 0.368*h))
+        p.addLine(to: CGPoint(x: 0.607*w, y: 0.396*h))
+        p.addLine(to: CGPoint(x: 0.607*w, y: 0.407*h))
+        p.addLine(to: CGPoint(x: 0.541*w, y: 0.445*h))
+        p.addLine(to: CGPoint(x: 0.519*w, y: 0.522*h))
+        p.addLine(to: CGPoint(x: 0.519*w, y: 0.769*h))
+        p.addLine(to: CGPoint(x: 0.618*w, y: 0.769*h))
+        p.addLine(to: CGPoint(x: 0.701*w, y: 0.451*h))
+        p.addLine(to: CGPoint(x: 0.728*w, y: 0.423*h))
+        p.addLine(to: CGPoint(x: 0.772*w, y: 0.407*h))
+        p.addLine(to: CGPoint(x: 0.728*w, y: 0.368*h))
+        p.addLine(to: CGPoint(x: 0.728*w, y: 0.341*h))
+        p.addLine(to: CGPoint(x: 0.816*w, y: 0.016*h))
+        p.addLine(to: CGPoint(x: 0.810*w, y: 0.000*h))
         p.closeSubpath()
         return p
     }

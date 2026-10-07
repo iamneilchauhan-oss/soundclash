@@ -135,7 +135,12 @@ struct LobbyView: View {
 
     var body: some View {
         ZStack {
-            VerzuzSplit(left: accent.color, right: .black)
+            Color.black.ignoresSafeArea()
+
+            // Subtle brand watermark (split lives on the home screen only).
+            VMark(left: accent.color, right: accent.color)
+                .opacity(0.06)
+                .frame(width: 320, height: 320)
 
             ScrollView {
                 VStack(spacing: 18) {
@@ -156,7 +161,7 @@ struct LobbyView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(.black.opacity(0.85))
+                        .background(Color.white.opacity(0.08))
                         .clipShape(RoundedRectangle(cornerRadius: 18))
                     }
 
@@ -189,7 +194,7 @@ struct LobbyView: View {
                     }
 
                     Button(viewModel.bottomLabel) { viewModel.bottomTap() }
-                        .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 24))
+                        .buttonStyle(VerzuzButtonStyle(fill: accent.color, textColor: accent.onColor, fontSize: 24))
                         .disabled(viewModel.bottomDisabled)
                         .opacity(viewModel.bottomDisabled ? 0.5 : 1)
                         .padding(.bottom, 8)
@@ -285,7 +290,7 @@ struct TierSection: View {
                             .foregroundStyle(p.isReady ? .green : .white.opacity(0.35))
                     }
                     .padding(10)
-                    .background(.black.opacity(0.85))
+                    .background(Color.white.opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
                 .disabled(!canAssign)

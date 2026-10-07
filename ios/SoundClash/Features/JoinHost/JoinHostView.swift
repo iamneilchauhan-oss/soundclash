@@ -29,8 +29,10 @@ final class JoinHostViewModel {
         !username.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    var isBusy = false
+
     func join() {
-        guard canJoin else { return }
+        guard canJoin, !isBusy else { return }
         let name = username.trimmingCharacters(in: .whitespaces)
         let code = roomCode.trimmingCharacters(in: .whitespaces).uppercased()
         rememberUsername(name)
@@ -39,11 +41,12 @@ final class JoinHostViewModel {
         guard !SCPreview.isActive else { appState.go(.lobby); return }
         // Real mode: validate the code against rooms, then insert this device's
         // participant row (role/avatar get finalized in the lobby).
+        isBusy = true
         Task {
             do {
                 let room = try await SupabaseService.shared.fetchRoom(code: code)
                 let participant = try await SupabaseService.shared.joinRoom(
-                    roomId: room.id, username: name, role: .audience, avatar: "👤"
+                    roomId: room.id, username: name, role: .audience, avatar: ""
                 )
                 appState.roomId = room.id
                 appState.myParticipantId = participant.id
@@ -52,11 +55,12 @@ final class JoinHostViewModel {
             } catch {
                 appState.backendError = error.localizedDescription
             }
+            isBusy = false
         }
     }
 
     func host() {
-        guard canHost else { return }
+        guard canHost, !isBusy else { return }
         let name = username.trimmingCharacters(in: .whitespaces)
         rememberUsername(name)
         appState.username = name
@@ -66,11 +70,12 @@ final class JoinHostViewModel {
             appState.go(.lobby)
             return
         }
+        isBusy = true
         Task {
             do {
                 let room = try await SupabaseService.shared.createRoom(title: "\(name)'s Battle")
                 let participant = try await SupabaseService.shared.joinRoom(
-                    roomId: room.id, username: name, role: .host, avatar: "👑"
+                    roomId: room.id, username: name, role: .host, avatar: ""
                 )
                 appState.roomCode = room.code
                 appState.roomId = room.id
@@ -80,6 +85,7 @@ final class JoinHostViewModel {
             } catch {
                 appState.backendError = error.localizedDescription
             }
+            isBusy = false
         }
     }
 }
@@ -95,13 +101,18 @@ struct JoinHostView: View {
 
     var body: some View {
         ZStack {
-            VerzuzSplit(left: accent.color, right: .black)
+            Color.black.ignoresSafeArea()
+
+            // Subtle brand watermark (split lives on the home screen only).
+            VMark(left: accent.color, right: accent.color)
+                .opacity(0.07)
+                .frame(width: 320, height: 320)
 
             ScrollView {
                 VStack(spacing: 20) {
                     Text("Who's battling?")
                         .font(VerzuzTheme.display(34))
-                        .foregroundStyle(accent.onColor)
+                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 12)
 
@@ -113,7 +124,7 @@ struct JoinHostView: View {
                             .textInputAutocapitalization(.words)
                             .focused($focusedField, equals: .username)
                             .padding(14)
-                            .background(.black.opacity(0.85))
+                            .background(Color.white.opacity(0.1))
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                             .foregroundStyle(.white)
                     }
@@ -127,7 +138,7 @@ struct JoinHostView: View {
                             .autocorrectionDisabled()
                             .focused($focusedField, equals: .code)
                             .padding(14)
-                            .background(.black.opacity(0.85))
+                            .background(Color.white.opacity(0.1))
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                             .foregroundStyle(.white)
                             .onChange(of: viewModel.roomCode) { _, new in
@@ -137,9 +148,9 @@ struct JoinHostView: View {
                     }
 
                     Button("JOIN BATTLE") { viewModel.join() }
-                        .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 22))
-                        .disabled(!viewModel.canJoin)
-                        .opacity(viewModel.canJoin ? 1 : 0.4)
+                        .buttonStyle(VerzuzButtonStyle(fill: accent.color, textColor: accent.onColor, fontSize: 22))
+                        .disabled(!viewModel.canJoin || viewModel.isBusy)
+                        .opacity(viewModel.canJoin && !viewModel.isBusy ? 1 : 0.4)
                         .padding(.top, 8)
 
                     HStack(spacing: 12) {
@@ -149,18 +160,33 @@ struct JoinHostView: View {
                     }
 
                     Button("HOST A BATTLE") { viewModel.host() }
-                        .buttonStyle(VerzuzButtonStyle(fill: accent.color, textColor: accent.onColor, fontSize: 22))
-                        .disabled(!viewModel.canHost)
-                        .opacity(viewModel.canHost ? 1 : 0.4)
+                        .buttonStyle(VerzuzButtonStyle(fill: .white.opacity(0.12), textColor: .white, fontSize: 22))
+                        .disabled(!viewModel.canHost || viewModel.isBusy)
+                        .opacity(viewModel.canHost && !viewModel.isBusy ? 1 : 0.4)
 
                     Spacer()
                 }
                 .padding(24)
             }
             .scrollDismissesKeyboard(.interactively)
+
+            if viewModel.isBusy {
+                Color.black.opacity(0.5).ignoresSafeArea()
+                ProgressView()
+                    .tint(.white)
+                    .scaleEffect(1.5)
+            }
         }
         .task { viewModel.configure(appState) }
         .toolbar(.hidden, for: .navigationBar)
+        .alert("Couldn't continue", isPresented: Binding(
+            get: { appState.backendError != nil },
+            set: { if !$0 { appState.backendError = nil } }
+        )) {
+            Button("OK") { appState.backendError = nil }
+        } message: {
+            Text(appState.backendError ?? "")
+        }
     }
 }
 
