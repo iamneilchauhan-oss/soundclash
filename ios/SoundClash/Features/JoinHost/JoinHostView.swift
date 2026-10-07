@@ -42,7 +42,8 @@ final class JoinHostViewModel {
         // Real mode: validate the code against rooms, then insert this device's
         // participant row (role/avatar get finalized in the lobby).
         isBusy = true
-        Task {
+        let work = Task { @MainActor in
+            defer { isBusy = false }
             do {
                 let room = try await SupabaseService.shared.fetchRoom(code: code)
                 let participant = try await SupabaseService.shared.joinRoom(
@@ -53,9 +54,17 @@ final class JoinHostViewModel {
                 appState.startFollowingRoom()
                 appState.go(.lobby)
             } catch {
+                if Task.isCancelled { return }
                 appState.backendError = error.localizedDescription
             }
+        }
+        // Watchdog: a hung backend call must never spin forever.
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(20))
+            guard !work.isCancelled, isBusy else { return }
+            work.cancel()
             isBusy = false
+            appState.backendError = BackendError.timedOut.localizedDescription
         }
     }
 
@@ -71,7 +80,8 @@ final class JoinHostViewModel {
             return
         }
         isBusy = true
-        Task {
+        let work = Task { @MainActor in
+            defer { isBusy = false }
             do {
                 let room = try await SupabaseService.shared.createRoom(title: "\(name)'s Battle")
                 let participant = try await SupabaseService.shared.joinRoom(
@@ -83,9 +93,17 @@ final class JoinHostViewModel {
                 appState.startFollowingRoom()
                 appState.go(.lobby)
             } catch {
+                if Task.isCancelled { return }
                 appState.backendError = error.localizedDescription
             }
+        }
+        // Watchdog: a hung backend call must never spin forever.
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(20))
+            guard !work.isCancelled, isBusy else { return }
+            work.cancel()
             isBusy = false
+            appState.backendError = BackendError.timedOut.localizedDescription
         }
     }
 }
@@ -103,10 +121,6 @@ struct JoinHostView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Subtle brand watermark (split lives on the home screen only).
-            VMark(left: accent.color, right: accent.color)
-                .opacity(0.07)
-                .frame(width: 320, height: 320)
 
             ScrollView {
                 VStack(spacing: 20) {

@@ -137,10 +137,6 @@ struct LobbyView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            // Subtle brand watermark (split lives on the home screen only).
-            VMark(left: accent.color, right: accent.color)
-                .opacity(0.06)
-                .frame(width: 320, height: 320)
 
             ScrollView {
                 VStack(spacing: 18) {

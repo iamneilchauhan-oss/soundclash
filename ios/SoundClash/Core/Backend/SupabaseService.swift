@@ -7,6 +7,7 @@ enum BackendError: Error, LocalizedError {
     case notConfigured
     case notFound(String)
     case requestFailed(Error)
+    case timedOut
 
     var errorDescription: String? {
         switch self {
@@ -16,6 +17,8 @@ enum BackendError: Error, LocalizedError {
             return "Couldn't find \(what). Check the room code and try again."
         case .requestFailed(let error):
             return error.localizedDescription
+        case .timedOut:
+            return "The request timed out. Check your connection and try again."
         }
     }
 }
