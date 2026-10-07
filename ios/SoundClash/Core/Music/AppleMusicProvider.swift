@@ -237,6 +237,6 @@ final class AppleMusicProvider: MusicProvider {
     /// Requires a subscription (same as catalog playback).
     func addCurrentToLibrary() async throws {
         guard let song = lastSong else { throw MusicError.trackNotFound }
-        try await MusicLibrary.shared.add(resource: song)
+        try await MusicLibrary.shared.add(song)
     }
 }
