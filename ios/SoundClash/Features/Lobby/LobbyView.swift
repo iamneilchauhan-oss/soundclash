@@ -15,11 +15,11 @@ final class LobbyViewModel {
         // Preview: materialize "me" as a real participant row so the whole
         // host-assignment flow is testable with one device.
         if SCPreview.isActive {
-            let meId = appState.myParticipantId ?? UUID()
-            appState.myParticipantId = meId
-            if !appState.participants.contains(where: { $0.id == meId }) {
-                let name = appState.username.isEmpty ? "You" : appState.username
-                appState.participants.insert(
+            let meId = state.myParticipantId ?? UUID()
+            state.myParticipantId = meId
+            if !state.participants.contains(where: { $0.id == meId }) {
+                let name = state.username.isEmpty ? "You" : state.username
+                state.participants.insert(
                     Participant(id: meId, roomId: UUID(), username: name, role: .host,
                                 avatar: nil, artistPick: nil, isReady: false, createdAt: Date()),
                     at: 0
@@ -72,10 +72,11 @@ final class LobbyViewModel {
         }
         guard !SCPreview.isActive, let id = appState.myParticipantId,
               let p = myParticipant else { return }
-        Task {
+        let isReadyValue = isReady
+        Task { @MainActor in
             do {
                 try await SupabaseService.shared.updateLobbyProfile(
-                    id: id, role: p.role, avatar: p.avatar ?? "", isReady: isReady
+                    id: id, role: p.role, avatar: p.avatar ?? "", isReady: isReadyValue
                 )
             } catch {
                 appState.backendError = error.localizedDescription
@@ -102,7 +103,7 @@ final class LobbyViewModel {
             }
             return
         }
-        Task {
+        Task { @MainActor in
             do {
                 try await SupabaseService.shared.updateLobbyProfile(
                     id: participant.id, role: role,
@@ -122,7 +123,7 @@ final class LobbyViewModel {
             appState.go(.matchup)
             return
         }
-        Task {
+        Task { @MainActor in
             do {
                 try await SupabaseService.shared.advanceRoomStatus(roomId: roomId, status: .matchup)
                 appState.go(.matchup)
