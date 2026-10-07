@@ -31,6 +31,11 @@ final class JoinHostViewModel {
 
     var isBusy = false
 
+    /// Backend stalls get one transparent retry before surfacing an error.
+    private static let maxAttempts = 2
+    private static let attemptTimeout: Double = 15
+    private var operationGeneration = 0
+
     func join() {
         guard canJoin, !isBusy else { return }
         let name = username.trimmingCharacters(in: .whitespaces)
@@ -41,30 +46,42 @@ final class JoinHostViewModel {
         guard !SCPreview.isActive else { appState.go(.lobby); return }
         // Real mode: validate the code against rooms, then insert this device's
         // participant row (role/avatar get finalized in the lobby).
+        attemptJoin(name: name, code: code, attempt: 1)
+    }
+
+    private func attemptJoin(name: String, code: String, attempt: Int) {
+        operationGeneration += 1
+        let generation = operationGeneration
         isBusy = true
         let work = Task { @MainActor in
-            defer { isBusy = false }
             do {
                 let room = try await SupabaseService.shared.fetchRoom(code: code)
                 let participant = try await SupabaseService.shared.joinRoom(
                     roomId: room.id, username: name, role: .audience, avatar: ""
                 )
+                guard generation == self.operationGeneration else { return }
                 appState.roomId = room.id
                 appState.myParticipantId = participant.id
                 appState.startFollowingRoom()
                 appState.go(.lobby)
             } catch {
+                guard generation == self.operationGeneration else { return }
                 if Task.isCancelled { return }
                 appState.backendError = error.localizedDescription
             }
+            if generation == self.operationGeneration { isBusy = false }
         }
-        // Watchdog: a hung backend call must never spin forever.
+        // Watchdog: a hung backend call retries once, then surfaces a timeout.
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(20))
-            guard !work.isCancelled, isBusy else { return }
+            try? await Task.sleep(for: .seconds(Self.attemptTimeout))
+            guard !work.isCancelled, generation == self.operationGeneration, isBusy else { return }
             work.cancel()
-            isBusy = false
-            appState.backendError = BackendError.timedOut.localizedDescription
+            if attempt < Self.maxAttempts {
+                self.attemptJoin(name: name, code: code, attempt: attempt + 1)
+            } else {
+                isBusy = false
+                appState.backendError = BackendError.timedOut.localizedDescription
+            }
         }
     }
 
@@ -79,31 +96,43 @@ final class JoinHostViewModel {
             appState.go(.lobby)
             return
         }
+        attemptHost(name: name, attempt: 1)
+    }
+
+    private func attemptHost(name: String, attempt: Int) {
+        operationGeneration += 1
+        let generation = operationGeneration
         isBusy = true
         let work = Task { @MainActor in
-            defer { isBusy = false }
             do {
                 let room = try await SupabaseService.shared.createRoom(title: "\(name)'s Battle")
                 let participant = try await SupabaseService.shared.joinRoom(
                     roomId: room.id, username: name, role: .host, avatar: ""
                 )
+                guard generation == self.operationGeneration else { return }
                 appState.roomCode = room.code
                 appState.roomId = room.id
                 appState.myParticipantId = participant.id
                 appState.startFollowingRoom()
                 appState.go(.lobby)
             } catch {
+                guard generation == self.operationGeneration else { return }
                 if Task.isCancelled { return }
                 appState.backendError = error.localizedDescription
             }
+            if generation == self.operationGeneration { isBusy = false }
         }
-        // Watchdog: a hung backend call must never spin forever.
+        // Watchdog: a hung backend call retries once, then surfaces a timeout.
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(20))
-            guard !work.isCancelled, isBusy else { return }
+            try? await Task.sleep(for: .seconds(Self.attemptTimeout))
+            guard !work.isCancelled, generation == self.operationGeneration, isBusy else { return }
             work.cancel()
-            isBusy = false
-            appState.backendError = BackendError.timedOut.localizedDescription
+            if attempt < Self.maxAttempts {
+                self.attemptHost(name: name, attempt: attempt + 1)
+            } else {
+                isBusy = false
+                appState.backendError = BackendError.timedOut.localizedDescription
+            }
         }
     }
 }
