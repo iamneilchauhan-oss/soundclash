@@ -4,7 +4,9 @@ import UIKit
 @Observable
 @MainActor
 final class LobbyViewModel {
-    var appState: AppState!
+    /// Optional: SwiftUI evaluates the body before `.task` runs `configure`,
+    /// so every read must tolerate nil on the first pass.
+    var appState: AppState?
     var isReady = false
     var assigning: Participant?
 
@@ -27,7 +29,8 @@ final class LobbyViewModel {
     }
 
     var myParticipant: Participant? {
-        appState.participants.first(where: { $0.id == appState.myParticipantId })
+        guard let appState else { return nil }
+        return appState.participants.first(where: { $0.id == appState.myParticipantId })
     }
 
     /// Only the host assigns roles. In preview the tester always drives.
@@ -38,10 +41,10 @@ final class LobbyViewModel {
 
     // MARK: - Tiers
 
-    var hosts: [Participant] { appState.participants.filter { $0.role == .host } }
-    var players: [Participant] { appState.participants.filter { $0.role == .competitor } }
-    var judges: [Participant] { appState.participants.filter { $0.role == .judge } }
-    var audience: [Participant] { appState.participants.filter { $0.role == .audience } }
+    var hosts: [Participant] { (appState?.participants ?? []).filter { $0.role == .host } }
+    var players: [Participant] { (appState?.participants ?? []).filter { $0.role == .competitor } }
+    var judges: [Participant] { (appState?.participants ?? []).filter { $0.role == .judge } }
+    var audience: [Participant] { (appState?.participants ?? []).filter { $0.role == .audience } }
 
     // MARK: - Bottom button: READY arms it, second tap starts (host only)
 
@@ -61,6 +64,7 @@ final class LobbyViewModel {
     }
 
     func toggleReady() {
+        guard let appState else { return }
         isReady.toggle()
         if let id = appState.myParticipantId,
            let i = appState.participants.firstIndex(where: { $0.id == id }) {
@@ -83,6 +87,7 @@ final class LobbyViewModel {
 
     func assignRole(_ role: ParticipantRole, to participant: Participant) {
         defer { assigning = nil }
+        guard let appState else { return }
         if role == .competitor && players.count >= 2 && participant.role != .competitor {
             appState.backendError = "Players are full (2 max)."
             return
@@ -110,6 +115,7 @@ final class LobbyViewModel {
     }
 
     func start() {
+        guard let appState else { return }
         if let role = myParticipant?.role { appState.myRole = role }
         appState.mySide = .red // mock: local competitor always takes the red corner
         guard !SCPreview.isActive, let roomId = appState.roomId else {
