@@ -13,10 +13,32 @@ final class MatchupViewModel {
 
     func configure(_ state: AppState) { appState = state }
 
-    var filteredArtists: [String] {
-        let q = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return MockData.presetArtists }
-        return MockData.presetArtists.filter { $0.lowercased().contains(q) }
+    var artistResults: [String] = []
+    var isSearching = false
+    private var searchTask: Task<Void, Never>?
+
+    /// Debounced live artist search — no presets, just the catalog.
+    func searchChanged(_ text: String) {
+        searchTask?.cancel()
+        let q = text.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else {
+            artistResults = []
+            isSearching = false
+            return
+        }
+        isSearching = true
+        searchTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            do {
+                let names = try await MusicMode.provider.searchArtists(query: q)
+                guard !Task.isCancelled else { return }
+                artistResults = names
+            } catch {
+                artistResults = []
+            }
+            isSearching = false
+        }
     }
 
     func artist(for side: Side) -> String? {
@@ -64,13 +86,6 @@ final class MatchupViewModel {
                 appState.backendError = error.localizedDescription
             }
         }
-    }
-
-    func surpriseMe() {
-        var pool = MockData.presetArtists.shuffled()
-        redArtist = pool.removeFirst()
-        blueArtist = pool.removeFirst()
-        // Leave unlocked so players can still change their minds.
     }
 
     var canContinue: Bool {
@@ -147,16 +162,30 @@ struct MatchupView: View {
                             .background(Circle().fill(.black))
                     }
 
-                    // Artist search + grid
+                    // Artist search — live catalog results, no presets
                     VStack(spacing: 10) {
                         TextField("Search artists", text: $viewModel.searchText)
                             .padding(12)
                             .background(.black.opacity(0.85))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .foregroundStyle(.white)
+                            .onChange(of: viewModel.searchText) { _, new in
+                                viewModel.searchChanged(new)
+                            }
+
+                        if viewModel.isSearching {
+                            ProgressView()
+                                .tint(.white)
+                                .padding(.vertical, 8)
+                        } else if viewModel.artistResults.isEmpty && !viewModel.searchText.isEmpty {
+                            Text("No artists found — try another search.")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.6))
+                                .padding(.vertical, 8)
+                        }
 
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), spacing: 8) {
-                            ForEach(viewModel.filteredArtists, id: \.self) { artist in
+                            ForEach(viewModel.artistResults, id: \.self) { artist in
                                 Button { viewModel.tapArtist(artist) } label: {
                                     Text(artist)
                                         .font(VerzuzTheme.display(15))
@@ -169,9 +198,6 @@ struct MatchupView: View {
                             }
                         }
                     }
-
-                    Button("SURPRISE ME") { viewModel.surpriseMe() }
-                        .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 20))
 
                     Button("CONTINUE TO COIN TOSS") { viewModel.cont() }
                         .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 20))

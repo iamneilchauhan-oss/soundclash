@@ -59,6 +59,9 @@ protocol MusicProvider: AnyObject {
     /// matchup) — the picker must never show random other artists.
     func searchCatalog(query: String, artist: String?) async throws -> [SCTrack]
 
+    /// Artist-name search for the matchup picker. Returns display names.
+    func searchArtists(query: String) async throws -> [String]
+
     /// Queue the track, then begin playback at `startAt` (wall clock).
     /// This is the sync mechanism: every device is handed the same server
     /// timestamp and starts the same track at the same instant.

@@ -54,6 +54,13 @@ final class DemoMusicProvider: MusicProvider {
         return qHits.isEmpty ? hits : qHits
     }
 
+    func searchArtists(query: String) async throws -> [String] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return [] }
+        let names = Set(Self.demoTracks.map(\.artist))
+        return names.filter { $0.lowercased().contains(q) }.sorted()
+    }
+
     /// Same wall-clock scheduled-start contract as AppleMusicProvider: render
     /// (or reuse) the track's audio now, then sleep until `startAt`.
     func play(track: SCTrack, startAt: Date) async throws {

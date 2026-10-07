@@ -42,10 +42,19 @@ final class LobbyViewModel {
 
     // MARK: - Tiers
 
-    var hosts: [Participant] { (appState?.participants ?? []).filter { $0.role == .host } }
     var players: [Participant] { (appState?.participants ?? []).filter { $0.role == .competitor } }
     var judges: [Participant] { (appState?.participants ?? []).filter { $0.role == .judge } }
-    var audience: [Participant] { (appState?.participants ?? []).filter { $0.role == .audience } }
+    /// Audience doubles as the host's home — no separate host tier.
+    var audience: [Participant] {
+        (appState?.participants ?? []).filter { $0.role == .audience || $0.role == .host }
+    }
+
+    /// True when this participant should show the host V badge.
+    func isHostBadge(for p: Participant) -> Bool {
+        if p.role == .host { return true }
+        guard let appState else { return false }
+        return appState.amHost && p.id == appState.myParticipantId
+    }
 
     // MARK: - Bottom button: READY arms it, second tap starts (host only)
 
@@ -174,26 +183,21 @@ struct LobbyView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 18))
                     }
 
-                    TierSection(title: "HOST", color: SCTheme.gold, role: .host,
-                                entries: viewModel.hosts, myId: appState.myParticipantId,
-                                isHost: viewModel.isHost, dropTarget: $dropTarget,
-                                onDrop: { viewModel.assignRole(.host, toId: $0) })
-
                     TierSection(title: "PLAYERS", subtitle: "\(viewModel.players.count)/2",
                                 color: VerzuzTheme.clashA.color, role: .competitor,
-                                entries: viewModel.players, myId: appState.myParticipantId,
-                                isHost: viewModel.isHost, dropTarget: $dropTarget,
+                                entries: viewModel.players,
+                                isHost: viewModel.isHost, isHostBadge: viewModel.isHostBadge, dropTarget: $dropTarget,
                                 onDrop: { viewModel.assignRole(.competitor, toId: $0) })
 
                     TierSection(title: "JUDGES", subtitle: "\(viewModel.judges.count)/3",
                                 color: VerzuzTheme.clashB.color, role: .judge,
-                                entries: viewModel.judges, myId: appState.myParticipantId,
-                                isHost: viewModel.isHost, dropTarget: $dropTarget,
+                                entries: viewModel.judges,
+                                isHost: viewModel.isHost, isHostBadge: viewModel.isHostBadge, dropTarget: $dropTarget,
                                 onDrop: { viewModel.assignRole(.judge, toId: $0) })
 
                     TierSection(title: "AUDIENCE", color: .gray, role: .audience,
-                                entries: viewModel.audience, myId: appState.myParticipantId,
-                                isHost: viewModel.isHost, dropTarget: $dropTarget,
+                                entries: viewModel.audience,
+                                isHost: viewModel.isHost, isHostBadge: viewModel.isHostBadge, dropTarget: $dropTarget,
                                 onDrop: { viewModel.assignRole(.audience, toId: $0) })
 
                     if viewModel.isHost {
@@ -232,8 +236,8 @@ struct TierSection: View {
     let color: Color
     let role: ParticipantRole
     let entries: [Participant]
-    let myId: UUID?
     let isHost: Bool
+    let isHostBadge: (Participant) -> Bool
     @Binding var dropTarget: ParticipantRole?
     let onDrop: (UUID) -> Void
 
@@ -251,17 +255,12 @@ struct TierSection: View {
             }
             .padding(.horizontal, 4)
 
-            VStack(spacing: 8) {
-                if entries.isEmpty {
-                    Text("Drop here")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.35))
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 12) {
                 ForEach(entries) { p in
-                    participantRow(p)
+                    participantCircle(p)
                 }
             }
+            .frame(minHeight: 96)
             .padding(6)
             .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
             .background(
@@ -288,45 +287,40 @@ struct TierSection: View {
     }
 
     @ViewBuilder
-    private func participantRow(_ p: Participant) -> some View {
-        let row = HStack(spacing: 12) {
+    private func participantCircle(_ p: Participant) -> some View {
+        let circle = VStack(spacing: 4) {
             ZStack {
-                Circle().fill(color).frame(width: 40, height: 40)
+                Circle()
+                    .fill(color)
+                    .frame(width: 60, height: 60)
                 Text(initials(of: p.username))
-                    .font(VerzuzTheme.display(16))
+                    .font(VerzuzTheme.display(20))
                     .foregroundStyle(.black)
             }
-            Text(p.id == myId ? "\(p.username) (YOU)" : p.username)
-                .font(VerzuzTheme.display(16))
-                .foregroundStyle(.white)
-            Spacer()
-            if isHost {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.35))
+            HStack(spacing: 3) {
+                Text(p.username)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                if isHostBadge(p) {
+                    VMark(left: .white.opacity(0.55), right: .white.opacity(0.55))
+                        .frame(width: 12, height: 12)
+                }
             }
-            Image(systemName: p.isReady ? "checkmark.circle.fill" : "clock")
-                .font(.system(size: 20))
-                .foregroundStyle(p.isReady ? .green : .white.opacity(0.35))
+            .frame(width: 72)
         }
-        .padding(10)
-        .background(Color.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
 
         if isHost {
-            row.draggable(p.id.uuidString) {
-                HStack(spacing: 8) {
-                    Circle().fill(color).frame(width: 32, height: 32)
-                    Text(p.username)
-                        .font(VerzuzTheme.display(14))
-                        .foregroundStyle(.white)
+            circle.draggable(p.id.uuidString) {
+                ZStack {
+                    Circle().fill(color).frame(width: 48, height: 48)
+                    Text(initials(of: p.username))
+                        .font(VerzuzTheme.display(16))
+                        .foregroundStyle(.black)
                 }
-                .padding(8)
-                .background(Color(white: 0.15))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
         } else {
-            row
+            circle
         }
     }
 

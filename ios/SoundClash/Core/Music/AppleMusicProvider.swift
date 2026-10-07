@@ -75,6 +75,17 @@ final class AppleMusicProvider: MusicProvider {
         }
     }
 
+    func searchArtists(query: String) async throws -> [String] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return [] }
+        var request = MusicCatalogSearchRequest(term: q, types: [Artist.self])
+        request.limit = 25
+        let response = try await request.response()
+        // De-dupe while preserving catalog ranking.
+        var seen = Set<String>()
+        return Array(response.artists).map(\.name).filter { seen.insert($0).inserted }
+    }
+
     /// Resolves a lightweight SCTrack back to a full catalog Song for playback.
     private func resolveSong(for track: SCTrack) async throws -> Song {
         let request = MusicCatalogResourceRequest<Song>(
