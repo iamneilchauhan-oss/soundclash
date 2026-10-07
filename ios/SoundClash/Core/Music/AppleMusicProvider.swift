@@ -57,7 +57,7 @@ final class AppleMusicProvider: MusicProvider {
         var request = MusicCatalogSearchRequest(term: term, types: [Song.self])
         request.limit = 25
         let response = try await request.response()
-        var songs = response.songs
+        var songs = Array(response.songs)
         if let scopedArtist {
             let hits = songs.filter { $0.artistName.localizedCaseInsensitiveContains(scopedArtist) }
             // If the strict filter empties the list (name mismatch), fall back
