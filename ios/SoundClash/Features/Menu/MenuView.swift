@@ -27,41 +27,46 @@ struct MenuView: View {
     @State private var viewModel = MenuViewModel()
     @State private var showSettings = false
 
+    private var accent: VerzuzTheme.Accent { VerzuzTheme.menuAccent }
+
     var body: some View {
         ZStack {
-            SCTheme.background.ignoresSafeArea()
+            VerzuzSplit(left: accent.color, right: .black)
 
-            VStack(spacing: 20) {
-                Spacer()
-
-                VStack(spacing: 8) {
+            VStack(spacing: 0) {
+                HStack {
                     Text("SOUNDCLASH")
-                        .font(SCTheme.title(46))
-                        .foregroundStyle(.white)
-                    Text("Remote Verzuz battles")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
-                        .foregroundStyle(SCTheme.secondaryText)
-                    Text("2 competitors · 3 judges · one winner")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(SCTheme.secondaryText.opacity(0.8))
+                        .font(VerzuzTheme.display(30))
+                        .foregroundStyle(accent.onColor)
+                    Spacer()
                 }
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
 
                 Spacer()
 
-                Button("Play") { viewModel.play() }
-                    .buttonStyle(SCPrimaryButton())
+                // V monogram straddling the split: black on the accent side,
+                // accent on the black side.
+                VMark(left: .black, right: accent.color)
+                    .frame(width: 220, height: 220)
 
-                Button {
-                    showSettings = true
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "gearshape.fill")
-                        Text("Settings")
-                    }
+                Spacer()
+
+                Button { viewModel.play() } label: {
+                    Text("PLAY")
                 }
-                .buttonStyle(SCSecondaryButton())
+                .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white))
+                .padding(.horizontal, 28)
+
+                Button { showSettings = true } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(accent.color)
+                        .padding(14)
+                }
+                .padding(.top, 18)
+                .padding(.bottom, 8)
             }
-            .padding(28)
         }
         .sheet(isPresented: $showSettings) { SettingsSheet() }
         .alert("Couldn't continue", isPresented: Binding(

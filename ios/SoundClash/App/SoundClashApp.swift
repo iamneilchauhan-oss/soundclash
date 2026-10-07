@@ -4,6 +4,10 @@ import SwiftUI
 struct SoundClashApp: App {
     @State private var appState = AppState()
 
+    init() {
+        VerzuzFonts.register()
+    }
+
     var body: some Scene {
         WindowGroup {
             NavigationStack(path: $appState.path) {

@@ -128,7 +128,7 @@ struct ResultsView: View {
                             .font(.system(size: 14, weight: .black, design: .rounded))
                             .foregroundStyle(.white.opacity(0.85))
                         Text(appState.name(for: viewModel.winner).uppercased())
-                            .font(SCTheme.title(40))
+                            .font(VerzuzTheme.display(44))
                             .foregroundStyle(.white)
                         Text("\(viewModel.score.red) — \(viewModel.score.blue)")
                             .font(.system(size: 26, weight: .heavy, design: .rounded))

@@ -48,19 +48,19 @@ struct NowPlayingCard: View {
             HStack {
                 Text(phaseLabel)
                     .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(side.color)
+                    .foregroundStyle(VerzuzTheme.clashColor(for: side))
                 Spacer()
                 Text(side.label.uppercased())
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(side.color.opacity(0.9))
+                    .background(VerzuzTheme.clashColor(for: side).opacity(0.9))
                     .clipShape(Capsule())
             }
             HStack(spacing: 14) {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(SCTheme.sideGradient(side))
+                    .fill(VerzuzTheme.clashGradient(for: side))
                     .frame(width: 64, height: 64)
                     .overlay(
                         Image(systemName: "music.note")
@@ -77,7 +77,7 @@ struct NowPlayingCard: View {
                 }
                 Spacer()
             }
-            SCProgressBar(progress: progress, color: side.color)
+            SCProgressBar(progress: progress, color: VerzuzTheme.clashColor(for: side))
         }
         .scCard()
     }
@@ -282,13 +282,14 @@ struct JudgeBattleView: View {
 
     var body: some View {
         ZStack {
-            SCTheme.background.ignoresSafeArea()
+            VerzuzSplit(left: VerzuzTheme.clashA.color, right: VerzuzTheme.clashB.color)
+            VMark(left: .black.opacity(0.85), right: .white.opacity(0.9))
+                .frame(width: 260, height: 260)
+                .opacity(0.25)
             ScrollView {
                 VStack(spacing: 16) {
                     HStack {
-                        Text("ROUND \(round)")
-                            .font(SCTheme.title(28))
-                            .foregroundStyle(.white)
+                        VerzuzPill(text: "ROUND \(round)", fontSize: 24)
                         Spacer()
                         HStack(spacing: 6) {
                             Circle().fill(SCTheme.red).frame(width: 8, height: 8)
@@ -706,19 +707,20 @@ struct PlayerBattleView: View {
 
     var body: some View {
         ZStack {
-            SCTheme.background.ignoresSafeArea()
+            VerzuzSplit(left: VerzuzTheme.clashA.color, right: VerzuzTheme.clashB.color)
+            VMark(left: .black.opacity(0.85), right: .white.opacity(0.9))
+                .frame(width: 260, height: 260)
+                .opacity(0.25)
             ScrollView {
                 VStack(spacing: 16) {
                     HStack {
-                        Text("ROUND \(round)")
-                            .font(SCTheme.title(28))
-                            .foregroundStyle(.white)
+                        VerzuzPill(text: "ROUND \(round)", fontSize: 24)
                         Spacer()
                         Text(viewModel.mySide.label.uppercased())
                             .font(.system(size: 12, weight: .black, design: .rounded))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 12).padding(.vertical, 6)
-                            .background(viewModel.mySide.color.opacity(0.9))
+                            .background(VerzuzTheme.clashColor(for: viewModel.mySide).opacity(0.9))
                             .clipShape(Capsule())
                     }
 
@@ -821,7 +823,7 @@ struct PlayerBattleView: View {
         VStack(spacing: 12) {
             Text("YOUR TURN — PICK A TRACK")
                 .font(.system(size: 16, weight: .black, design: .rounded))
-                .foregroundStyle(viewModel.mySide.color)
+                .foregroundStyle(VerzuzTheme.clashColor(for: viewModel.mySide))
 
             TextField("Search your songs", text: $viewModel.searchText)
                 .onSubmit { viewModel.search() }
@@ -857,12 +859,12 @@ struct PlayerBattleView: View {
                 .background(
                     RoundedRectangle(cornerRadius: 12)
                         .fill(viewModel.selectedSong?.id == song.id
-                              ? viewModel.mySide.color.opacity(0.25)
+                              ? VerzuzTheme.clashColor(for: viewModel.mySide).opacity(0.25)
                               : SCTheme.card)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(viewModel.selectedSong?.id == song.id ? viewModel.mySide.color : .clear, lineWidth: 2)
+                        .stroke(viewModel.selectedSong?.id == song.id ? VerzuzTheme.clashColor(for: viewModel.mySide) : .clear, lineWidth: 2)
                 )
                 .onTapGesture { viewModel.selectedSong = song }
             }
@@ -960,13 +962,16 @@ struct SpectatorView: View {
 
     var body: some View {
         ZStack {
-            SCTheme.background.ignoresSafeArea()
+            VerzuzSplit(left: VerzuzTheme.clashA.color, right: VerzuzTheme.clashB.color)
+            VMark(left: .black.opacity(0.85), right: .white.opacity(0.9))
+                .frame(width: 260, height: 260)
+                .opacity(0.25)
             ScrollView {
                 VStack(spacing: 16) {
-                    Text("ROUND \(round)")
-                        .font(SCTheme.title(28))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack {
+                        VerzuzPill(text: "ROUND \(round)", fontSize: 24)
+                        Spacer()
+                    }
 
                     ScoreStrip(results: appState.scoreboard, totalRounds: 5, liveRound: round)
 

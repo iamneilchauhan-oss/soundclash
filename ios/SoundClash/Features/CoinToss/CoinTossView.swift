@@ -83,7 +83,7 @@ struct CoinTossView: View {
                 Spacer()
 
                 Text("COIN TOSS")
-                    .font(SCTheme.title(34))
+                    .font(VerzuzTheme.display(34))
                     .foregroundStyle(.white)
 
                 Text("Winner plays first")

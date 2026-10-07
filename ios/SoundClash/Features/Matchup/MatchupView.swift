@@ -100,19 +100,23 @@ struct MatchupView: View {
 
     var body: some View {
         ZStack {
-            SCTheme.background.ignoresSafeArea()
+            VerzuzSplit(left: VerzuzTheme.clashA.color, right: VerzuzTheme.clashB.color)
+
+            // V watermark behind the content.
+            VMark(left: .black.opacity(0.85), right: .white.opacity(0.9))
+                .frame(width: 300, height: 300)
+                .opacity(0.35)
 
             ScrollView {
                 VStack(spacing: 16) {
-                    Text("PICK YOUR ARTIST")
-                        .font(SCTheme.title(30))
-                        .foregroundStyle(.white)
+                    VerzuzPill(text: "PICK YOUR ARTIST", fontSize: 22)
                         .padding(.top, 8)
 
                     Text("Tap a corner, then tap an artist. Lock in when both sides are set.")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(SCTheme.secondaryText)
+                        .font(VerzuzTheme.display(14))
+                        .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
+                        .shadow(radius: 2)
 
                     // Head-to-head cards
                     HStack(spacing: 12) {
@@ -137,39 +141,40 @@ struct MatchupView: View {
                     }
                     .overlay(alignment: .center) {
                         Text("VS")
-                            .font(.system(size: 20, weight: .black, design: .rounded))
+                            .font(VerzuzTheme.display(20))
                             .foregroundStyle(.white)
                             .padding(12)
-                            .background(Circle().fill(SCTheme.card).overlay(Circle().stroke(SCTheme.cardBorder)))
+                            .background(Circle().fill(.black))
                     }
 
                     // Artist search + grid
                     VStack(spacing: 10) {
                         TextField("Search artists", text: $viewModel.searchText)
                             .padding(12)
-                            .background(SCTheme.card)
+                            .background(.black.opacity(0.85))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .foregroundStyle(.white)
 
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), spacing: 8) {
                             ForEach(viewModel.filteredArtists, id: \.self) { artist in
                                 Button { viewModel.tapArtist(artist) } label: {
                                     Text(artist)
-                                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                        .font(VerzuzTheme.display(15))
                                         .foregroundStyle(.white)
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, 12)
-                                        .background(SCTheme.card)
+                                        .background(.black.opacity(0.85))
                                         .clipShape(RoundedRectangle(cornerRadius: 12))
                                 }
                             }
                         }
                     }
 
-                    Button("Surprise Me") { viewModel.surpriseMe() }
-                        .buttonStyle(SCSecondaryButton())
+                    Button("SURPRISE ME") { viewModel.surpriseMe() }
+                        .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 20))
 
-                    Button("Continue to Coin Toss") { viewModel.cont() }
-                        .buttonStyle(SCPrimaryButton())
+                    Button("CONTINUE TO COIN TOSS") { viewModel.cont() }
+                        .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 20))
                         .disabled(!viewModel.canContinue)
                         .opacity(viewModel.canContinue ? 1 : 0.4)
                         .padding(.bottom, 8)
@@ -197,24 +202,26 @@ struct FighterCard: View {
         return parts.map { String($0.prefix(1)) }.joined()
     }
 
+    private var clash: Color { VerzuzTheme.clashColor(for: side) }
+
     var body: some View {
         VStack(spacing: 10) {
             Button(action: onSelect) {
                 VStack(spacing: 10) {
                     ZStack {
                         Circle()
-                            .fill(SCTheme.sideGradient(side))
+                            .fill(clash)
                             .frame(width: 84, height: 84)
                         Text(initials)
-                            .font(.system(size: 30, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.white)
+                            .font(VerzuzTheme.display(30))
+                            .foregroundStyle(.black)
                     }
                     Text(name)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .font(VerzuzTheme.display(16))
                         .foregroundStyle(.white)
                     Text(artist ?? "Tap artists below")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(artist == nil ? SCTheme.secondaryText : .white)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(artist == nil ? .white.opacity(0.7) : .white)
                         .multilineTextAlignment(.center)
                         .frame(minHeight: 36)
                 }
@@ -226,25 +233,25 @@ struct FighterCard: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: isLocked ? "lock.fill" : "lock.open")
-                    Text(isLocked ? "Locked" : "Lock In")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                    Text(isLocked ? "LOCKED" : "LOCK IN")
+                        .font(VerzuzTheme.display(14))
                 }
-                .foregroundStyle(isLocked ? .white : side.color)
+                .foregroundStyle(isLocked ? .black : .white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(isLocked ? side.color.opacity(0.9) : side.color.opacity(0.15))
+                        .fill(isLocked ? clash : .black.opacity(0.85))
                 )
             }
             .disabled(isLocked || artist == nil)
         }
         .padding(14)
-        .background(SCTheme.card)
+        .background(.black.opacity(0.85))
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .overlay(
             RoundedRectangle(cornerRadius: 18)
-                .stroke(isAssigning ? side.color : SCTheme.cardBorder, lineWidth: isAssigning ? 3 : 1)
+                .stroke(isAssigning ? clash : .white.opacity(0.25), lineWidth: isAssigning ? 3 : 1)
         )
         .animation(.easeInOut(duration: 0.2), value: isAssigning)
     }

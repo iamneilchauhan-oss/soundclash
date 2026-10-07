@@ -154,7 +154,7 @@ struct VotingView: View {
                             .font(.system(size: 15, weight: .bold, design: .rounded))
                             .foregroundStyle(SCTheme.secondaryText)
                         Text("JUDGES VOTE")
-                            .font(SCTheme.title(34))
+                            .font(VerzuzTheme.display(34))
                             .foregroundStyle(.white)
                     }
 

@@ -87,7 +87,7 @@ struct JoinHostView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     Text("Who's battling?")
-                        .font(SCTheme.title(30))
+                        .font(VerzuzTheme.display(30))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 12)
