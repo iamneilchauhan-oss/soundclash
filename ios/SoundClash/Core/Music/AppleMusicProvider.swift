@@ -129,17 +129,18 @@ final class AppleMusicProvider: MusicProvider {
         )
         let response = try await request.response()
         guard let full = response.items.first else { return [] }
-        let tracks = try await full.with(.songs).songs ?? []
-        return tracks.map { song in
+        let detailed = try await full.with(.tracks)
+        let tracks = detailed.tracks ?? []
+        return tracks.map { track in
             SCTrack(
-                appleMusicId: song.id.rawValue,
-                isrc: song.isrc ?? "",
-                title: song.title,
-                artist: song.artistName,
-                artworkURL: song.artwork?.url(width: 300, height: 300),
-                isExplicit: song.contentRating == .explicit,
+                appleMusicId: track.id.rawValue,
+                isrc: track.isrc ?? "",
+                title: track.title,
+                artist: track.artistName,
+                artworkURL: track.artwork?.url(width: 300, height: 300),
+                isExplicit: track.contentRating == .explicit,
                 albumName: album.title,
-                duration: song.duration
+                duration: track.duration
             )
         }
     }
