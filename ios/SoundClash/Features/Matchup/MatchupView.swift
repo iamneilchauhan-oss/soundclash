@@ -47,10 +47,14 @@ final class MatchupViewModel {
         if let artist = artist(for: side) {
             appState.matchupArtists[side] = artist
         }
-        // Real mode: lock my artist pick on my participant row. (Prototype
-        // simplification: the matchup screen is driven from one device, like the
-        // mock; sides map to competitor participants at the coin toss.)
+        // Real mode: lock my artist pick on my participant row — but ONLY when
+        // locking my own side. (Prototype simplification: the matchup screen
+        // is driven from one device, like the mock; sides map to competitor
+        // participants at the coin toss. In solo testing one device locks
+        // both sides, and writing the opponent's artist to my row would
+        // corrupt my own pick.)
         guard !SCPreview.isActive,
+              side == appState.mySide,
               let id = appState.myParticipantId,
               let artist = artist(for: side) else { return }
         Task {

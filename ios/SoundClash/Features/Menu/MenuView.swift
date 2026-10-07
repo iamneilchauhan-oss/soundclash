@@ -85,7 +85,7 @@ struct SettingsSheet: View {
     @State private var notifications = false
     @State private var highQuality = true
     @AppStorage("soundclash.demoMusicMode") private var demoMode = false
-    @AppStorage("soundclash.testing.skipControls") private var skipControls = false
+    @AppStorage("soundclash.testing.skipControls") private var skipControls = true
 
     var body: some View {
         NavigationStack {

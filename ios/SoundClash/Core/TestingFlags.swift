@@ -9,7 +9,9 @@ enum TestingFlags {
     private static let skipKey = "soundclash.testing.skipControls"
 
     static var showSkipControls: Bool {
-        get { UserDefaults.standard.bool(forKey: skipKey) }
+        // Defaults ON while the app is in active solo testing — the toggle
+        // in Settings > Testing can turn it off.
+        get { UserDefaults.standard.object(forKey: skipKey) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: skipKey) }
     }
 }

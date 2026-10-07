@@ -9,8 +9,9 @@ import Foundation
 ///   2. `startSyncedPlay` schedules playback to begin at startedAt (or now, if
 ///      the timestamp is already past — the normal case for recordPlay).
 ///   3. A 5s heartbeat compares expected position (wall clock − startedAt)
-///      against actual `player.playbackTime`; drift > 0.75s triggers a coarse
-///      re-sync (track restart — MusicKit has no seek API).
+///      against actual `player.playbackTime` and records the drift
+///      (monitor-only — MusicKit has no seek API, so there is no safe
+///      automatic correction; restarting was observed to kill playback).
 @Observable
 @MainActor
 final class SyncEngine {
@@ -18,9 +19,9 @@ final class SyncEngine {
 
     private init() {}
 
-    /// Max tolerated drift before a coarse re-sync.
+    /// Drift under this counts as "in sync" (informational only).
     private let driftTolerance: TimeInterval = 0.75
-    /// Heartbeat interval. Re-syncs can never happen more often than this.
+    /// Heartbeat interval for drift monitoring.
     private let heartbeatInterval: TimeInterval = 5.0
 
     private var heartbeatTask: Task<Void, Never>?
@@ -70,15 +71,12 @@ final class SyncEngine {
         let drift = abs(expected - actual)
         lastDrift = drift
         isSynced = drift <= driftTolerance
-        if drift > driftTolerance {
-            // Coarse correction only: restart the track, then re-baseline the
-            // clock to the restart moment. Without the re-baseline, `expected`
-            // keeps growing from the original startedAt while `actual` resets
-            // to 0 — so every heartbeat sees huge drift and restarts again,
-            // which is audible as a ~5s loop that never plays through.
-            try? await provider.restart()
-            activePlay?.startedAt = Date()
-        }
+        // Monitor-only: no automatic restart. MusicKit exposes no seek API,
+        // so restarting can't correct drift — it only re-introduces startup
+        // latency, and repeated restarts were observed stuttering then
+        // killing playback outright. The scheduled wall-clock start in
+        // play(track:startAt:) is the sync mechanism; this heartbeat just
+        // records how far off we are.
     }
 
     func stop() {
