@@ -24,6 +24,7 @@ targets:
       - path: ios/SoundClash
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.neilchauhanpersonalteam.SoundClash
+      GENERATE_INFOPLIST_FILE: YES
       INFOPLIST_KEY_NSAppleMusicUsageDescription: "SoundClash plays battle tracks from your Apple Music subscription."
       INFOPLIST_KEY_NSMicrophoneUsageDescription: "SoundClash uses your mic so competitors and judges can talk live."
       INFOPLIST_KEY_UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
@@ -39,6 +40,9 @@ targets:
     platform: iOS
     sources:
       - path: ios/SnapshotTests
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.neilchauhanpersonalteam.SoundClash.snapshotTests
+      GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: SoundClash
 
