@@ -1,7 +1,17 @@
 import Foundation
 import MusicKit
+import AVFoundation
+import UIKit
 
 /// MusicKit implementation of MusicProvider. Apple Music only.
+///
+/// Audio architecture (see build-channel feedback):
+/// - Battle playback runs on SystemMusicPlayer (separate audio session, via
+///   the Music app process). This frees the app's session for previews.
+/// - Previews play the real ~30s catalog preview clip (Song.previewAssets)
+///   via AVPlayer in the app's session with `.duckOthers` — iOS auto-ducks
+///   the battle track Maps-style while the clip plays, then restores it.
+///   Only the previewing device is affected; everyone else stays in sync.
 ///
 /// No developer token is fetched or set anywhere here — deliberately. On native
 /// iOS there is no developer-token API: MusicKit attaches it automatically once
@@ -12,11 +22,24 @@ import MusicKit
 final class AppleMusicProvider: MusicProvider {
     static let shared = AppleMusicProvider()
 
-    private init() {}
+    private init() {
+        // Battle music must not keep playing when the app backgrounds.
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.pause() }
+        }
+    }
 
     var onPlaybackStateChange: ((PlaybackState) -> Void)?
 
-    private let player = ApplicationMusicPlayer.shared
+    /// Battle playback: system-wide, via the Music app process.
+    private let player = SystemMusicPlayer.shared
+    /// Private preview clips: app-local AVPlayer, ducked over the battle.
+    private var previewPlayer: AVPlayer?
+    private var previewEndObserver: NSObjectProtocol?
     private var scheduledTask: Task<Void, Never>?
     private var previewTask: Task<Void, Never>?
     /// Last successfully queued song — the restart() target (no seek API exists).
@@ -36,6 +59,7 @@ final class AppleMusicProvider: MusicProvider {
         let status = await MusicAuthorization.request()
         guard status == .authorized else { throw MusicError.notAuthorized }
         // Catalog playback requires an active Apple Music subscription.
+        // (Preview clips do NOT — they play without one.)
         let subscription = try await MusicSubscription.current
         guard subscription.canPlayCatalogContent else { throw MusicError.noSubscription }
     }
@@ -99,7 +123,7 @@ final class AppleMusicProvider: MusicProvider {
         return song
     }
 
-    // MARK: - Playback
+    // MARK: - Battle playback (SystemMusicPlayer)
 
     /// Sync mechanism: queue the song now, then sleep until the server-agreed
     /// wall-clock time before calling play(). Every device in the room does the
@@ -110,9 +134,6 @@ final class AppleMusicProvider: MusicProvider {
         lastSong = song
         player.queue = [song]
         scheduledTask?.cancel()
-        // A stale preview auto-stop must never fire during a synced play —
-        // 30s after any preview it would otherwise pause the battle track.
-        previewTask?.cancel()
         scheduledTask = Task {
             let delay = startAt.timeIntervalSinceNow
             if delay > 0 {
@@ -128,26 +149,9 @@ final class AppleMusicProvider: MusicProvider {
         }
     }
 
-    func playPreview(track: SCTrack) async throws {
-        let song = try await resolveSong(for: track)
-        lastSong = song
-        previewTask?.cancel()
-        scheduledTask?.cancel()
-        player.queue = [song]
-        try await player.play()
-        onPlaybackStateChange?(.playing)
-        // Previews are private and unsynced: auto-stop after 30 seconds.
-        previewTask = Task {
-            try? await Task.sleep(nanoseconds: 30_000_000_000)
-            guard !Task.isCancelled else { return }
-            self.player.pause()
-            self.onPlaybackStateChange?(.paused)
-        }
-    }
-
     func pause() {
         scheduledTask?.cancel()
-        previewTask?.cancel()
+        stopPreview()
         player.pause()
         onPlaybackStateChange?(.paused)
     }
@@ -158,7 +162,6 @@ final class AppleMusicProvider: MusicProvider {
     /// are the primary sync mechanism, not this.
     func restart() async throws {
         guard let song = lastSong else { return }
-        previewTask?.cancel()
         scheduledTask?.cancel()
         player.queue = [song]
         try await player.play()
@@ -167,5 +170,73 @@ final class AppleMusicProvider: MusicProvider {
 
     func currentPlaybackTime() -> TimeInterval {
         player.playbackTime
+    }
+
+    // MARK: - Previews (AVPlayer + ducking)
+
+    /// Plays the real catalog preview clip (~30s, usually the hook) via
+    /// AVPlayer. The app's audio session ducks the SystemMusicPlayer battle
+    /// track while the clip plays, then restores it. Private and unsynced —
+    /// battle state callbacks are untouched.
+    func playPreview(track: SCTrack) async throws {
+        let song = try await resolveSong(for: track)
+        guard let previewURL = song.previewAssets?.first?.url else {
+            throw MusicError.noPreview
+        }
+        stopPreview()
+
+        try activateDucking()
+        let item = AVPlayerItem(url: previewURL)
+        let avPlayer = AVPlayer(playerItem: item)
+        previewPlayer = avPlayer
+
+        previewEndObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.stopPreview() }
+        }
+
+        avPlayer.play()
+
+        // Backup timeout: previews run ~30s; never leave the session ducked.
+        previewTask = Task {
+            try? await Task.sleep(nanoseconds: 40_000_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run { self.stopPreview() }
+        }
+    }
+
+    /// Stops the preview and restores the audio session (unducks battle).
+    private func stopPreview() {
+        previewTask?.cancel()
+        previewTask = nil
+        if let observer = previewEndObserver {
+            NotificationCenter.default.removeObserver(observer)
+            previewEndObserver = nil
+        }
+        previewPlayer?.pause()
+        previewPlayer = nil
+        deactivateDucking()
+    }
+
+    private func activateDucking() throws {
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playback, options: .duckOthers)
+        try session.setActive(true)
+    }
+
+    private func deactivateDucking() {
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    // MARK: - Library
+
+    /// Adds the current battle track to the user's Apple Music library.
+    /// Requires a subscription (same as catalog playback).
+    func addCurrentToLibrary() async throws {
+        guard let song = lastSong else { throw MusicError.trackNotFound }
+        try await MusicLibrary.shared.add(resource: song)
     }
 }

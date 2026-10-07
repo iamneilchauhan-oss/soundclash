@@ -43,6 +43,12 @@ struct NowPlayingCard: View {
     let progress: Double
     let phaseLabel: String
 
+    @State private var libraryState: LibraryAddState = .idle
+
+    enum LibraryAddState {
+        case idle, adding, added, failed
+    }
+
     var body: some View {
         VStack(spacing: 12) {
             HStack {
@@ -50,6 +56,24 @@ struct NowPlayingCard: View {
                     .font(.system(size: 13, weight: .black, design: .rounded))
                     .foregroundStyle(VerzuzTheme.clashColor(for: side))
                 Spacer()
+                // Add to Apple Music library (real catalog only).
+                if !MusicMode.useDemoTracks {
+                    Button { addToLibrary() } label: {
+                        Image(systemName: libraryState == .added ? "checkmark" : "plus")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(8)
+                            .background(
+                                Circle().fill(
+                                    libraryState == .added
+                                        ? .green
+                                        : VerzuzTheme.clashColor(for: side).opacity(0.9)
+                                )
+                            )
+                    }
+                    .disabled(libraryState == .adding || libraryState == .added)
+                    .accessibilityLabel("Add to Apple Music library")
+                }
                 Text(side.label.uppercased())
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
@@ -80,6 +104,22 @@ struct NowPlayingCard: View {
             SCProgressBar(progress: progress, color: VerzuzTheme.clashColor(for: side))
         }
         .scCard()
+    }
+
+    private func addToLibrary() {
+        guard libraryState == .idle else { return }
+        libraryState = .adding
+        Task { @MainActor in
+            do {
+                try await MusicMode.provider.addCurrentToLibrary()
+                libraryState = .added
+            } catch {
+                libraryState = .failed
+                // Reset so they can retry.
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                if libraryState == .failed { libraryState = .idle }
+            }
+        }
     }
 }
 

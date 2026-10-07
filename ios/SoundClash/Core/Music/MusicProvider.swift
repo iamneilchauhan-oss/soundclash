@@ -24,6 +24,7 @@ enum MusicError: Error, LocalizedError {
     case notAuthorized
     case noSubscription
     case trackNotFound
+    case noPreview
 
     var errorDescription: String? {
         switch self {
@@ -33,6 +34,8 @@ enum MusicError: Error, LocalizedError {
             return "An Apple Music subscription is required to play full tracks."
         case .trackNotFound:
             return "Couldn't find that track in the Apple Music catalog."
+        case .noPreview:
+            return "No preview clip is available for this track."
         }
     }
 }
@@ -85,4 +88,8 @@ protocol MusicProvider: AnyObject {
 
     /// Seconds into the current track. Used by SyncEngine for drift detection.
     func currentPlaybackTime() -> TimeInterval
+
+    /// Adds the currently loaded battle track to the user's Apple Music
+    /// library. Real catalog only — demo synth tracks have no catalog IDs.
+    func addCurrentToLibrary() async throws
 }

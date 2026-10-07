@@ -115,6 +115,11 @@ final class DemoMusicProvider: MusicProvider {
         player?.currentTime ?? 0
     }
 
+    /// Demo synth tracks have no catalog IDs — library add is unavailable.
+    func addCurrentToLibrary() async throws {
+        throw MusicError.trackNotFound
+    }
+
     // MARK: - Player
 
     private func ensurePlayer(for track: SCTrack) throws {
