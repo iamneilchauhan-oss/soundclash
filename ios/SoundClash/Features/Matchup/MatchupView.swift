@@ -238,6 +238,10 @@ struct MatchupView: View {
 
             Button { viewModel.assigningSide = side } label: {
                 VStack(spacing: 12) {
+                    Text(appState.name(for: side).uppercased())
+                        .font(VerzuzTheme.display(15))
+                        .foregroundStyle(.white)
+                        .shadow(radius: 2)
                     ZStack {
                         if let artworkURL {
                             AsyncImage(url: artworkURL) { phase in
@@ -270,10 +274,6 @@ struct MatchupView: View {
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
-
-                    Text(appState.name(for: side).uppercased())
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.85))
                 }
             }
 

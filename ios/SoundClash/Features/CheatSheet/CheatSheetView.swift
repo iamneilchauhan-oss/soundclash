@@ -244,7 +244,7 @@ struct AddCheatEntryView: View {
     @State private var isSearching = false
     @State private var manualTitle = ""
     @State private var manualArtist = ""
-    private var searchTask: Task<Void, Never>?
+    @State private var searchTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
