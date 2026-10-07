@@ -61,11 +61,11 @@ enum MockData {
 
     static let redCompetitor = Participant(
         id: UUID(), roomId: roomId, username: "Maya", role: .competitor,
-        avatar: "🎤", artistPick: "Alicia Keys", isReady: true, createdAt: Date()
+        avatar: "🎤", artistPick: "Alicia Keys", artistLocked: false, isReady: true, createdAt: Date()
     )
     static let blueCompetitor = Participant(
         id: UUID(), roomId: roomId, username: "Dre", role: .competitor,
-        avatar: "🎧", artistPick: "Usher", isReady: true, createdAt: Date()
+        avatar: "🎧", artistPick: "Usher", artistLocked: false, isReady: true, createdAt: Date()
     )
     static let judges: [Participant] = [
         Participant(id: UUID(), roomId: roomId, username: "Kai", role: .judge, avatar: "🎚️", artistPick: nil, artistLocked: false, isReady: true, createdAt: Date()),
