@@ -55,13 +55,15 @@ struct MenuView: View {
                 HStack(spacing: 14) {
                     Button { viewModel.play() } label: {
                         Text("PLAY")
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 24))
 
                     Button {
                         appState.go(.cheatSheet)
                     } label: {
-                        Text("CHEAT SHEET")
+                        Text("CHEAT SHEETS")
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(VerzuzButtonStyle(fill: accent.color, textColor: accent.onColor, fontSize: 24))
                 }

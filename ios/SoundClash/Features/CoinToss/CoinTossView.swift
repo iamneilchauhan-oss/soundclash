@@ -65,68 +65,65 @@ struct CoinTossView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel = CoinTossViewModel()
 
-    private var coinFill: some ShapeStyle {
-        if let result = viewModel.result {
-            return AnyShapeStyle(SCTheme.sideGradient(result))
-        }
-        return AnyShapeStyle(
-            LinearGradient(colors: [SCTheme.gold, SCTheme.gold.opacity(0.4)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-        )
-    }
-
     var body: some View {
         ZStack {
-            SCTheme.background.ignoresSafeArea()
+            // Match the matchup's Color Clash language.
+            VerzuzSplit(left: VerzuzTheme.clashA.color, right: VerzuzTheme.clashB.color)
 
-            VStack(spacing: 28) {
+            VStack(spacing: 24) {
                 Spacer()
 
-                Text("COIN TOSS")
-                    .font(VerzuzTheme.display(34))
-                    .foregroundStyle(.white)
+                VerzuzPill(text: "COIN TOSS", fontSize: 24)
 
                 Text("Winner plays first")
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundStyle(SCTheme.secondaryText)
+                    .font(VerzuzTheme.display(15))
+                    .foregroundStyle(.white)
+                    .shadow(radius: 2)
 
-                // The coin
+                // The coin — black V coin, flips to the winner's color.
                 ZStack {
                     Circle()
                         .fill(coinFill)
                         .frame(width: 170, height: 170)
                         .shadow(color: .black.opacity(0.5), radius: 20)
                     Circle()
-                        .stroke(Color.white.opacity(0.25), lineWidth: 3)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 3)
                         .frame(width: 170, height: 170)
-                    Text(coinFaceText)
-                        .font(.system(size: 30, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
+                    if let result = viewModel.result {
+                        Text(result == .red ? "RED" : "BLUE")
+                            .font(VerzuzTheme.display(30))
+                            .foregroundStyle(.white)
+                    } else if !viewModel.isTossing {
+                        VMark(left: .white, right: .white.opacity(0.7))
+                            .frame(width: 90, height: 90)
+                    }
                 }
                 .rotation3DEffect(.degrees(viewModel.rotation), axis: (x: 0, y: 1, z: 0))
 
                 if let result = viewModel.result {
-                    Text("\(appState.name(for: result)) plays first")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(result.color)
+                    Text("\(appState.name(for: result).uppercased()) PLAYS FIRST")
+                        .font(VerzuzTheme.display(24))
+                        .foregroundStyle(.white)
+                        .shadow(radius: 3)
                         .transition(.opacity.combined(with: .scale))
                 } else {
-                    Text(viewModel.isTossing ? "Flipping…" : "Tap to toss")
-                        .font(.system(size: 17, weight: .medium, design: .rounded))
-                        .foregroundStyle(SCTheme.secondaryText)
+                    Text(viewModel.isTossing ? "FLIPPING…" : "TAP TO TOSS")
+                        .font(VerzuzTheme.display(17))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .shadow(radius: 2)
                 }
 
                 Spacer()
 
                 if viewModel.result == nil {
-                    Button(viewModel.isTossing ? "Flipping…" : "Toss the Coin") {
+                    Button(viewModel.isTossing ? "FLIPPING…" : "TOSS THE COIN") {
                         viewModel.toss()
                     }
-                    .buttonStyle(SCPrimaryButton())
+                    .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 20))
                     .disabled(viewModel.isTossing)
                 } else {
-                    Button(SCPreview.isActive ? "Start Round 5" : "Start Battle") { viewModel.cont() }
-                        .buttonStyle(SCPrimaryButton())
+                    Button(SCPreview.isActive ? "START ROUND 5" : "START BATTLE") { viewModel.cont() }
+                        .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 20))
                 }
             }
             .padding(28)
@@ -135,11 +132,11 @@ struct CoinTossView: View {
         .toolbar(.hidden, for: .navigationBar)
     }
 
-    private var coinFaceText: String {
+    private var coinFill: Color {
         if let result = viewModel.result {
-            return result == .red ? "RED" : "BLUE"
+            return VerzuzTheme.clashColor(for: result)
         }
-        return viewModel.isTossing ? "" : "?"
+        return .black
     }
 }
 

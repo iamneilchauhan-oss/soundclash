@@ -40,7 +40,7 @@ final class DemoMusicProvider: MusicProvider {
     /// Nothing to authorize — always "granted".
     func requestAuthorization() async throws {}
 
-    func searchCatalog(query: String, artist: String?) async throws -> [SCTrack] {
+    func searchCatalog(query: String, artist: String?, broad: Bool) async throws -> [SCTrack] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         var hits = Self.demoTracks
         if let a = artist?.trimmingCharacters(in: .whitespaces).lowercased(), !a.isEmpty {
@@ -61,6 +61,10 @@ final class DemoMusicProvider: MusicProvider {
         return names.filter { $0.lowercased().contains(q) }.sorted()
             .map { ArtistHit(name: $0, artworkURL: nil) }
     }
+
+    func searchAlbums(artist: String) async throws -> [SCAlbum] { return [] }
+
+    func albumTracks(_ album: SCAlbum) async throws -> [SCTrack] { return [] }
 
     /// Same wall-clock scheduled-start contract as AppleMusicProvider: render
     /// (or reuse) the track's audio now, then sleep until `startAt`.

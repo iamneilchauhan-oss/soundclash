@@ -10,6 +10,32 @@ struct SCTrack: Identifiable, Hashable, Sendable {
     let title: String
     let artist: String
     let artworkURL: URL?
+    var isExplicit: Bool = false
+    var albumName: String?
+    var duration: TimeInterval?
+
+    /// "E" badge + duration line, Apple Music style.
+    var detailLine: String {
+        var parts: [String] = []
+        if isExplicit { parts.append("E") }
+        if let albumName { parts.append(albumName) }
+        if let duration {
+            let m = Int(duration) / 60
+            let s = Int(duration) % 60
+            parts.append(String(format: "%d:%02d", m, s))
+        }
+        return parts.joined(separator: "  ·  ")
+    }
+}
+
+/// Lightweight album for the album-nav tab.
+struct SCAlbum: Identifiable, Hashable, Sendable {
+    var id: String { appleMusicId }
+    let appleMusicId: String
+    let title: String
+    let artist: String
+    let artworkURL: URL?
+    var trackCount: Int = 0
 }
 
 // MARK: - Playback state / errors
@@ -66,8 +92,15 @@ protocol MusicProvider: AnyObject {
 
     /// Catalog search for the track picker. When `artist` is non-nil the
     /// results are scoped to that artist's songs (the battle's artist
-    /// matchup) — the picker must never show random other artists.
-    func searchCatalog(query: String, artist: String?) async throws -> [SCTrack]
+    /// matchup). When `broad` is true, the artist filter is lifted — results
+    /// may include features, writing credits, and covers involving the artist.
+    func searchCatalog(query: String, artist: String?, broad: Bool) async throws -> [SCTrack]
+
+    /// Albums for the album-nav tab, scoped to the battle artist.
+    func searchAlbums(artist: String) async throws -> [SCAlbum]
+
+    /// Tracks on an album (for the album-nav tab drill-in).
+    func albumTracks(_ album: SCAlbum) async throws -> [SCTrack]
 
     /// Artist-name search for the matchup picker.
     func searchArtists(query: String) async throws -> [ArtistHit]

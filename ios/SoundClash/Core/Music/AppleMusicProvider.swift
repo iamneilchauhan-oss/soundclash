@@ -66,11 +66,11 @@ final class AppleMusicProvider: MusicProvider {
 
     // MARK: - Catalog
 
-    func searchCatalog(query: String, artist: String?) async throws -> [SCTrack] {
+    func searchCatalog(query: String, artist: String?, broad: Bool) async throws -> [SCTrack] {
         let trimmedArtist = artist?.trimmingCharacters(in: .whitespaces)
         let scopedArtist = (trimmedArtist?.isEmpty == false) ? trimmedArtist! : nil
         // Bias the catalog ranking toward the artist, then filter strictly —
-        // the battle picker shows this artist's songs only.
+        // unless `broad` lifts the filter (features, writing credits, covers).
         let term: String
         if let scopedArtist {
             let q = query.trimmingCharacters(in: .whitespaces)
@@ -82,7 +82,7 @@ final class AppleMusicProvider: MusicProvider {
         request.limit = 25
         let response = try await request.response()
         var songs = Array(response.songs)
-        if let scopedArtist {
+        if let scopedArtist, !broad {
             let hits = songs.filter { $0.artistName.localizedCaseInsensitiveContains(scopedArtist) }
             // If the strict filter empties the list (name mismatch), fall back
             // to the ranked results rather than showing a dead picker.
@@ -94,7 +94,52 @@ final class AppleMusicProvider: MusicProvider {
                 isrc: song.isrc ?? "",
                 title: song.title,
                 artist: song.artistName,
-                artworkURL: song.artwork?.url(width: 300, height: 300)
+                artworkURL: song.artwork?.url(width: 300, height: 300),
+                isExplicit: song.contentRating == .explicit,
+                albumName: song.albumTitle,
+                duration: song.duration
+            )
+        }
+    }
+
+    func searchAlbums(artist: String) async throws -> [SCAlbum] {
+        let q = artist.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return [] }
+        var request = MusicCatalogSearchRequest(term: q, types: [Album.self])
+        request.limit = 25
+        let response = try await request.response()
+        var seen = Set<String>()
+        return Array(response.albums)
+            .map { album in
+                SCAlbum(
+                    appleMusicId: album.id.rawValue,
+                    title: album.title,
+                    artist: album.artistName,
+                    artworkURL: album.artwork?.url(width: 300, height: 300),
+                    trackCount: album.trackCount ?? 0
+                )
+            }
+            .filter { seen.insert($0.appleMusicId).inserted }
+    }
+
+    func albumTracks(_ album: SCAlbum) async throws -> [SCTrack] {
+        let request = MusicCatalogResourceRequest<Album>(
+            matching: \.id,
+            equalTo: MusicItemID(rawValue: album.appleMusicId)
+        )
+        let response = try await request.response()
+        guard let full = response.items.first else { return [] }
+        let tracks = try await full.with(.songs).songs ?? []
+        return tracks.map { song in
+            SCTrack(
+                appleMusicId: song.id.rawValue,
+                isrc: song.isrc ?? "",
+                title: song.title,
+                artist: song.artistName,
+                artworkURL: song.artwork?.url(width: 300, height: 300),
+                isExplicit: song.contentRating == .explicit,
+                albumName: album.title,
+                duration: song.duration
             )
         }
     }

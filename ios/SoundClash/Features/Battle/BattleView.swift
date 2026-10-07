@@ -123,6 +123,79 @@ struct NowPlayingCard: View {
     }
 }
 
+/// Large now-playing for judges and non-turn players: the song dominates
+/// the screen with real artwork.
+struct BigNowPlayingCard: View {
+    let song: MockSong
+    let side: Side
+    let progress: Double
+    let phaseLabel: String
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack {
+                Text(phaseLabel)
+                    .font(VerzuzTheme.display(15))
+                    .foregroundStyle(.white)
+                Spacer()
+                Text(side.label.uppercased())
+                    .font(VerzuzTheme.display(12))
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(VerzuzTheme.clashColor(for: side))
+                    .clipShape(Capsule())
+            }
+
+            // Artwork — large, the hero of the card.
+            ZStack {
+                if let url = song.artworkURL {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let img): img.resizable().scaledToFill()
+                        default: artworkFallback
+                        }
+                    }
+                } else {
+                    artworkFallback
+                }
+            }
+            .frame(width: 220, height: 220)
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .shadow(color: .black.opacity(0.5), radius: 16)
+
+            VStack(spacing: 4) {
+                Text(song.title)
+                    .font(VerzuzTheme.display(26))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                Text(song.artist)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .lineLimit(1)
+            }
+
+            SCProgressBar(progress: progress, color: VerzuzTheme.clashColor(for: side))
+        }
+        .padding(20)
+        .background(.black.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 22))
+    }
+
+    @ViewBuilder
+    private var artworkFallback: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 20)
+                .fill(VerzuzTheme.clashGradient(for: side))
+            Image(systemName: "music.note")
+                .font(.system(size: 64))
+                .foregroundStyle(.white.opacity(0.85))
+        }
+        .frame(width: 220, height: 220)
+    }
+}
+
 struct ScoreStrip: View {
     let results: [RoundResult]
     let totalRounds: Int
@@ -343,7 +416,7 @@ struct JudgeBattleView: View {
                     ScoreStrip(results: appState.scoreboard, totalRounds: 5, liveRound: round)
 
                     if viewModel.hasLivePlay {
-                        NowPlayingCard(
+                        BigNowPlayingCard(
                             song: viewModel.nowPlaying,
                             side: viewModel.currentSide,
                             progress: viewModel.progress,
@@ -415,9 +488,16 @@ final class PlayerBattleViewModel {
     var progress = 0.0
     var searchText = ""
     var selectedSong: MockSong?
+    var selectedTrack: SCTrack?
     var previewingId: UUID?
+    var previewingTrackId: String?
     var previewProgress = 0.0
     var bothPlayed = false
+
+    /// Have I played this round yet? (Picker stays visible until I have.)
+    var hasPlayedThisRound: Bool { playedSides.contains(mySide) }
+    /// Can I hit play right now? Only on my turn.
+    var isMyTurnToPlay: Bool { turn == mySide && !bothPlayed }
 
     /// Real mode: live catalog results (replaces the mock song list).
     var catalogSongs: [MockSong] = []
@@ -478,7 +558,7 @@ final class PlayerBattleViewModel {
         let artist = appState.artistPick(for: mySide)
         Task {
             do {
-                let tracks = try await MusicMode.provider.searchCatalog(query: q, artist: artist)
+                let tracks = try await MusicMode.provider.searchCatalog(query: q, artist: artist, broad: false)
                 for t in tracks { trackById[t.appleMusicId] = t }
                 catalogSongs = tracks.map(MockSong.init)
             } catch {
@@ -500,6 +580,28 @@ final class PlayerBattleViewModel {
     }
 
     func playSelected() {
+        // New picker path: SCTrack selected directly.
+        if let track = selectedTrack {
+            guard !SCPreview.isActive,
+                  let roundId = appState.currentRoundId,
+                  let playerId = appState.myParticipantId else { return }
+            previewTask?.cancel()
+            previewingId = nil
+            previewingTrackId = nil
+            selectedTrack = nil
+            selectedSong = nil
+            Task { try? await MusicMode.provider.pause() }
+            Task {
+                do {
+                    _ = try await SupabaseService.shared.recordPlay(
+                        roundId: roundId, playerId: playerId, track: track
+                    )
+                } catch {
+                    appState.backendError = error.localizedDescription
+                }
+            }
+            return
+        }
         guard let song = selectedSong else { return }
         guard !SCPreview.isActive,
               let roundId = appState.currentRoundId,
@@ -546,10 +648,10 @@ final class PlayerBattleViewModel {
                 } else {
                     var results: [SCTrack] = []
                     if let opponentArtist {
-                        results = (try? await MusicMode.provider.searchCatalog(query: "", artist: opponentArtist)) ?? []
+                        results = (try? await MusicMode.provider.searchCatalog(query: "", artist: opponentArtist, broad: false)) ?? []
                     }
                     if results.isEmpty {
-                        results = try await MusicMode.provider.searchCatalog(query: "love", artist: nil)
+                        results = try await MusicMode.provider.searchCatalog(query: "love", artist: nil, broad: true)
                     }
                     guard let first = results.first else {
                         appState.backendError = "Couldn't find a track for the simulated pick."
@@ -689,6 +791,21 @@ final class PlayerBattleViewModel {
         }
     }
 
+    /// New picker path: preview an SCTrack directly (real preview clip).
+    func previewTrack(_ track: SCTrack) {
+        if SCPreview.isActive { return }
+        if previewingTrackId == track.id {
+            MusicMode.provider.pause()
+            previewingTrackId = nil
+            return
+        }
+        previewingTrackId = track.id
+        Task {
+            do { try await MusicMode.provider.playPreview(track: track) }
+            catch { appState.backendError = error.localizedDescription }
+        }
+    }
+
     private func previewMock(_ song: MockSong) {
         if previewingId == song.id {
             previewTask?.cancel()
@@ -768,35 +885,52 @@ struct PlayerBattleView: View {
 
                     if viewModel.bothPlayed {
                         VStack(spacing: 12) {
-                            Text("Both tracks played")
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                            Text("BOTH TRACKS PLAYED")
+                                .font(VerzuzTheme.display(22))
                                 .foregroundStyle(.white)
-                            Button("Go to Voting") { viewModel.goVoting() }
-                                .buttonStyle(SCPrimaryButton())
+                            Button("GO TO VOTING") { viewModel.goVoting() }
+                                .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 18))
                         }
-                        .scCard()
-                    } else if viewModel.isMyTurnToPick {
-                        pickView
-                    } else if let song = viewModel.nowPlaying {
-                        NowPlayingCard(
-                            song: song,
-                            side: viewModel.nowPlayingSide,
-                            progress: viewModel.progress,
-                            phaseLabel: viewModel.nowPlayingSide == viewModel.mySide
-                                ? "YOUR TRACK IS PLAYING" : "OPPONENT IS PLAYING"
-                        )
-                        if viewModel.nowPlayingSide == viewModel.mySide {
-                            Button("End Turn Early") { viewModel.endTurnEarly() }
-                                .buttonStyle(SCSecondaryButton())
-                        } else {
-                            Text("Get ready — you're up next")
-                                .font(.system(size: 14, weight: .medium, design: .rounded))
-                                .foregroundStyle(SCTheme.secondaryText)
-                        }
+                        .padding(20)
+                        .background(.black.opacity(0.72))
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
                     } else {
-                        // Opponent's turn and nothing playing yet — never leave
-                        // this state blank (it reads as a broken black screen).
-                        waitingView
+                        // Now playing: big card when it's the opponent's track.
+                        if let song = viewModel.nowPlaying {
+                            if viewModel.nowPlayingSide == viewModel.mySide {
+                                NowPlayingCard(
+                                    song: song,
+                                    side: viewModel.nowPlayingSide,
+                                    progress: viewModel.progress,
+                                    phaseLabel: "YOUR TRACK IS PLAYING"
+                                )
+                                Button("End Turn Early") { viewModel.endTurnEarly() }
+                                    .buttonStyle(VerzuzButtonStyle(fill: .white.opacity(0.14), textColor: .white, fontSize: 16))
+                            } else {
+                                BigNowPlayingCard(
+                                    song: song,
+                                    side: viewModel.nowPlayingSide,
+                                    progress: viewModel.progress,
+                                    phaseLabel: "OPPONENT IS PLAYING"
+                                )
+                            }
+                        } else if !viewModel.hasPlayedThisRound {
+                            // Nothing playing yet and I haven't picked: waiting.
+                            waitingView
+                        }
+
+                        // Picker: visible whenever I haven't played this round —
+                        // pick your next track while the opponent plays.
+                        if !viewModel.hasPlayedThisRound {
+                            TrackPickerView(
+                                selectedTrack: $viewModel.selectedTrack,
+                                battleArtist: appState.artistPick(for: viewModel.mySide) ?? "",
+                                canPlay: viewModel.isMyTurnToPlay,
+                                onPlay: { viewModel.playSelected() },
+                                onPreview: { viewModel.previewTrack($0) },
+                                previewingTrackId: viewModel.previewingTrackId
+                            )
+                        }
                     }
 
                     if TestingFlags.showSkipControls {

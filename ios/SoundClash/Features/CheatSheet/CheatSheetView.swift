@@ -338,7 +338,7 @@ struct AddCheatEntryView: View {
         searchTask = Task {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
-            let hits = (try? await MusicMode.provider.searchCatalog(query: q, artist: nil)) ?? []
+            let hits = (try? await MusicMode.provider.searchCatalog(query: q, artist: nil, broad: true)) ?? []
             guard !Task.isCancelled else { return }
             results = Array(hits.prefix(20))
             isSearching = false

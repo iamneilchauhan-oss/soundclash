@@ -35,6 +35,7 @@ struct MockSong: Identifiable, Hashable {
     let artist: String
     let isrc: String
     let appleMusicId: String
+    var artworkURL: URL?
 }
 
 extension MockSong {
@@ -42,7 +43,8 @@ extension MockSong {
     /// battle views work unchanged in real mode.
     init(_ track: SCTrack) {
         self.init(title: track.title, artist: track.artist,
-                  isrc: track.isrc, appleMusicId: track.appleMusicId)
+                  isrc: track.isrc, appleMusicId: track.appleMusicId,
+                  artworkURL: track.artworkURL)
     }
 }
 
