@@ -1,6 +1,18 @@
 import SwiftUI
 import UIKit
 
+// MARK: - Tier drop frames (for touch-drag hit testing)
+
+/// Each tier reports its frame in the "lobby" coordinate space so the
+/// touch-drag gesture can find the drop target under the finger.
+struct TierFrameKey: PreferenceKey {
+    static var defaultValue: [ParticipantRole: CGRect] = [:]
+    static func reduce(value: inout [ParticipantRole: CGRect],
+                       nextValue: () -> [ParticipantRole: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
 @Observable
 @MainActor
 final class LobbyViewModel {
@@ -151,7 +163,8 @@ final class LobbyViewModel {
 struct LobbyView: View {
     @Environment(AppState.self) private var appState
     @State private var viewModel = LobbyViewModel()
-    @State private var dropTarget: ParticipantRole?
+    @State private var tierFrames: [ParticipantRole: CGRect] = [:]
+    @State private var dragTarget: ParticipantRole?
 
     private var accent: VerzuzTheme.Accent { VerzuzTheme.menuAccent }
 
@@ -186,19 +199,22 @@ struct LobbyView: View {
                     TierSection(title: "PLAYERS", subtitle: "\(viewModel.players.count)/2",
                                 color: VerzuzTheme.clashA.color, role: .competitor,
                                 entries: viewModel.players,
-                                isHost: viewModel.isHost, isHostBadge: viewModel.isHostBadge, dropTarget: $dropTarget,
-                                onDrop: { viewModel.assignRole(.competitor, toId: $0) })
+                                isHost: viewModel.isHost, isHostBadge: viewModel.isHostBadge, tierFrames: tierFrames, dragTarget: dragTarget,
+                                onTargetChanged: { dragTarget = $0 },
+                                onDragDrop: { viewModel.assignRole($0, toId: $1) })
 
                     TierSection(title: "JUDGES", subtitle: "\(viewModel.judges.count)/3",
                                 color: VerzuzTheme.clashB.color, role: .judge,
                                 entries: viewModel.judges,
-                                isHost: viewModel.isHost, isHostBadge: viewModel.isHostBadge, dropTarget: $dropTarget,
-                                onDrop: { viewModel.assignRole(.judge, toId: $0) })
+                                isHost: viewModel.isHost, isHostBadge: viewModel.isHostBadge, tierFrames: tierFrames, dragTarget: dragTarget,
+                                onTargetChanged: { dragTarget = $0 },
+                                onDragDrop: { viewModel.assignRole($0, toId: $1) })
 
                     TierSection(title: "AUDIENCE", color: .gray, role: .audience,
                                 entries: viewModel.audience,
-                                isHost: viewModel.isHost, isHostBadge: viewModel.isHostBadge, dropTarget: $dropTarget,
-                                onDrop: { viewModel.assignRole(.audience, toId: $0) })
+                                isHost: viewModel.isHost, isHostBadge: viewModel.isHostBadge, tierFrames: tierFrames, dragTarget: dragTarget,
+                                onTargetChanged: { dragTarget = $0 },
+                                onDragDrop: { viewModel.assignRole($0, toId: $1) })
 
                     if viewModel.isHost {
                         Text("Drag people into roles to assign them.")
@@ -214,6 +230,8 @@ struct LobbyView: View {
                 }
                 .padding(20)
             }
+            .coordinateSpace(name: "lobby")
+            .onPreferenceChange(TierFrameKey.self) { tierFrames = $0 }
         }
         .task { viewModel.configure(appState) }
         .toolbar(.hidden, for: .navigationBar)
@@ -228,7 +246,7 @@ struct LobbyView: View {
     }
 }
 
-// MARK: - Tier section (no emojis: initial circles only)
+// MARK: - Tier section (touch-drag circles)
 
 struct TierSection: View {
     let title: String
@@ -238,8 +256,11 @@ struct TierSection: View {
     let entries: [Participant]
     let isHost: Bool
     let isHostBadge: (Participant) -> Bool
-    @Binding var dropTarget: ParticipantRole?
-    let onDrop: (UUID) -> Void
+    let tierFrames: [ParticipantRole: CGRect]
+    let dragTarget: ParticipantRole?
+    let onTargetChanged: (ParticipantRole?) -> Void
+    /// (target tier, participant id)
+    let onDragDrop: (ParticipantRole, UUID) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -257,71 +278,111 @@ struct TierSection: View {
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 12) {
                 ForEach(entries) { p in
-                    participantCircle(p)
+                    ParticipantCircle(
+                        participant: p,
+                        color: color,
+                        isHost: isHost,
+                        showHostBadge: isHostBadge(p),
+                        tierFrames: tierFrames,
+                        onTargetChanged: onTargetChanged,
+                        onDrop: { onDragDrop($0, p.id) }
+                    )
                 }
             }
             .frame(minHeight: 96)
             .padding(6)
-            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(dropTarget == role ? color.opacity(0.22) : Color.white.opacity(0.04))
+                    .fill(dragTarget == role ? color.opacity(0.22) : Color.white.opacity(0.04))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
                     .strokeBorder(
-                        dropTarget == role ? color : Color.white.opacity(0.12),
-                        lineWidth: dropTarget == role ? 2 : 1
+                        dragTarget == role ? color : Color.white.opacity(0.12),
+                        lineWidth: dragTarget == role ? 2 : 1
                     )
             )
-            .dropDestination(for: String.self) { ids, _ in
-                guard isHost,
-                      let idString = ids.first,
-                      let id = UUID(uuidString: idString) else { return false }
-                onDrop(id)
-                return true
-            } isTargeted: { targeted in
-                dropTarget = targeted ? role : nil
-            }
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(
+                        key: TierFrameKey.self,
+                        value: [role: geo.frame(in: .named("lobby"))]
+                    )
+                }
+            )
         }
     }
+}
 
-    @ViewBuilder
-    private func participantCircle(_ p: Participant) -> some View {
-        let circle = VStack(spacing: 4) {
+// MARK: - Draggable participant circle (touch-drag, no long-press)
+
+/// A participant rendered as a circle. The host touch-drags it straight into
+/// a tier — `DragGesture(minimumDistance: 0)` starts the drag the moment the
+/// finger moves, no long-press. The drop target is found by hit-testing the
+/// release point against the tier frames in the "lobby" coordinate space.
+struct ParticipantCircle: View {
+    let participant: Participant
+    let color: Color
+    let isHost: Bool
+    let showHostBadge: Bool
+    let tierFrames: [ParticipantRole: CGRect]
+    let onTargetChanged: (ParticipantRole?) -> Void
+    /// Target tier the circle was released over.
+    let onDrop: (ParticipantRole) -> Void
+
+    @State private var dragOffset: CGSize = .zero
+    @State private var isDragging = false
+
+    var body: some View {
+        VStack(spacing: 4) {
             ZStack {
                 Circle()
                     .fill(color)
                     .frame(width: 60, height: 60)
-                Text(initials(of: p.username))
+                Text(initials(of: participant.username))
                     .font(VerzuzTheme.display(20))
                     .foregroundStyle(.black)
             }
             HStack(spacing: 3) {
-                Text(p.username)
+                Text(participant.username)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
-                if isHostBadge(p) {
+                if showHostBadge {
                     VMark(left: .white.opacity(0.55), right: .white.opacity(0.55))
                         .frame(width: 12, height: 12)
                 }
             }
             .frame(width: 72)
         }
-
-        if isHost {
-            circle.draggable(p.id.uuidString) {
-                ZStack {
-                    Circle().fill(color).frame(width: 48, height: 48)
-                    Text(initials(of: p.username))
-                        .font(VerzuzTheme.display(16))
-                        .foregroundStyle(.black)
+        .scaleEffect(isDragging ? 1.18 : 1)
+        .shadow(color: .black.opacity(isDragging ? 0.5 : 0), radius: isDragging ? 10 : 0)
+        .offset(dragOffset)
+        .zIndex(isDragging ? 10 : 0)
+        .gesture(
+            DragGesture(minimumDistance: 0, coordinateSpace: .named("lobby"))
+                .onChanged { value in
+                    guard isHost else { return }
+                    isDragging = true
+                    dragOffset = value.translation
+                    onTargetChanged(target(at: value.location))
                 }
-            }
-        } else {
-            circle
-        }
+                .onEnded { value in
+                    guard isHost else { return }
+                    isDragging = false
+                    dragOffset = .zero
+                    onTargetChanged(nil)
+                    if let target = target(at: value.location) {
+                        onDrop(target)
+                    }
+                },
+            including: isHost ? .all : .none
+        )
+        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isDragging)
+    }
+
+    private func target(at location: CGPoint) -> ParticipantRole? {
+        tierFrames.first(where: { $0.value.contains(location) })?.key
     }
 
     private func initials(of name: String) -> String {

@@ -109,7 +109,7 @@ final class JoinHostViewModel {
             do {
                 let room = try await SupabaseService.shared.createRoom(title: "\(name)'s Battle")
                 let participant = try await SupabaseService.shared.joinRoom(
-                    roomId: room.id, username: name, role: .host, avatar: ""
+                    roomId: room.id, username: name, role: .competitor, avatar: ""
                 )
                 guard generation == self.operationGeneration else { return }
                 appState.roomCode = room.code
