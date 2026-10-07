@@ -112,7 +112,7 @@ enum MockData {
     ]
 
     /// A pre-populated AppState for Xcode Previews.
-    static func previewState() -> AppState {
+    @MainActor static func previewState() -> AppState {
         let state = AppState()
         state.username = "You"
         state.myRole = .judge
