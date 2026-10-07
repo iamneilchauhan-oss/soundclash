@@ -39,6 +39,13 @@ enum MusicError: Error, LocalizedError {
 
 // MARK: - Protocol
 
+/// One artist result for the matchup picker.
+struct ArtistHit: Identifiable, Sendable {
+    var id: String { name }
+    let name: String
+    let artworkURL: URL?
+}
+
 /// Playback abstraction. Apple Music only.
 protocol MusicProvider: AnyObject {
     /// Fired on play/pause/stop transitions (best-effort; the heartbeat in
@@ -59,8 +66,8 @@ protocol MusicProvider: AnyObject {
     /// matchup) — the picker must never show random other artists.
     func searchCatalog(query: String, artist: String?) async throws -> [SCTrack]
 
-    /// Artist-name search for the matchup picker. Returns display names.
-    func searchArtists(query: String) async throws -> [String]
+    /// Artist-name search for the matchup picker.
+    func searchArtists(query: String) async throws -> [ArtistHit]
 
     /// Queue the track, then begin playback at `startAt` (wall clock).
     /// This is the sync mechanism: every device is handed the same server

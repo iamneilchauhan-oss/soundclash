@@ -5,6 +5,7 @@ import SwiftUI
 /// Every screen in the 8-card flow. NavigationStack path lives in AppState.
 enum Route: Hashable {
     case menu
+    case cheatSheet
     case joinHost
     case lobby
     case matchup

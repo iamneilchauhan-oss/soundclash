@@ -13,9 +13,12 @@ final class MatchupViewModel {
 
     func configure(_ state: AppState) { appState = state }
 
-    var artistResults: [String] = []
+    var artistResults: [ArtistHit] = []
     var isSearching = false
     private var searchTask: Task<Void, Never>?
+
+    /// Artwork for the currently picked artists (Apple Music, when available).
+    var artwork: [Side: URL?] = [.red: nil, .blue: nil]
 
     /// Debounced live artist search — no presets, just the catalog.
     func searchChanged(_ text: String) {
@@ -49,16 +52,25 @@ final class MatchupViewModel {
         side == .red ? redLocked : blueLocked
     }
 
-    func tapArtist(_ name: String) {
+    func tapArtist(_ hit: ArtistHit) {
         if assigningSide == .red {
             guard !redLocked else { return }
-            redArtist = name
+            redArtist = hit.name
+            artwork[.red] = hit.artworkURL
         } else {
             guard !blueLocked else { return }
-            blueArtist = name
+            blueArtist = hit.name
+            artwork[.blue] = hit.artworkURL
         }
         // Auto-advance to the other corner so both picks take two taps.
         assigningSide = assigningSide.opponent
+    }
+
+    /// Swap the two sides' artists (and their artwork). Locks stay as they
+    /// are — this is for the "wrong side" oops, not a re-pick.
+    func swapSides() {
+        (redArtist, blueArtist) = (blueArtist, redArtist)
+        (artwork[.red], artwork[.blue]) = (artwork[.blue], artwork[.red])
     }
 
     func lock(_ side: Side) {
@@ -122,94 +134,142 @@ struct MatchupView: View {
                 .frame(width: 300, height: 300)
                 .opacity(0.35)
 
-            ScrollView {
-                VStack(spacing: 16) {
-                    VerzuzPill(text: "PICK YOUR ARTIST", fontSize: 22)
-                        .padding(.top, 8)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        VerzuzPill(text: "PICK YOUR ARTIST", fontSize: 22)
+                            .padding(.top, 8)
 
-                    Text("Tap a corner, then tap an artist. Lock in when both sides are set.")
-                        .font(VerzuzTheme.display(14))
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .shadow(radius: 2)
-
-                    // Head-to-head cards
-                    HStack(spacing: 12) {
-                        FighterCard(
-                            side: .red,
-                            name: appState.name(for: .red),
-                            artist: viewModel.redArtist,
-                            isAssigning: viewModel.assigningSide == .red,
-                            isLocked: viewModel.redLocked,
-                            onSelect: { viewModel.assigningSide = .red },
-                            onLock: { viewModel.lock(.red) }
-                        )
-                        FighterCard(
-                            side: .blue,
-                            name: appState.name(for: .blue),
-                            artist: viewModel.blueArtist,
-                            isAssigning: viewModel.assigningSide == .blue,
-                            isLocked: viewModel.blueLocked,
-                            onSelect: { viewModel.assigningSide = .blue },
-                            onLock: { viewModel.lock(.blue) }
-                        )
-                    }
-                    .overlay(alignment: .center) {
-                        Text("VS")
-                            .font(VerzuzTheme.display(20))
+                        Text("Tap a corner, then tap an artist. Lock in when both sides are set.")
+                            .font(VerzuzTheme.display(14))
                             .foregroundStyle(.white)
-                            .padding(12)
-                            .background(Circle().fill(.black))
-                    }
+                            .multilineTextAlignment(.center)
+                            .shadow(radius: 2)
 
-                    // Artist search — live catalog results, no presets
-                    VStack(spacing: 10) {
-                        TextField("Search artists", text: $viewModel.searchText)
-                            .padding(12)
-                            .background(.black.opacity(0.85))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .foregroundStyle(.white)
-                            .onChange(of: viewModel.searchText) { _, new in
-                                viewModel.searchChanged(new)
-                            }
-
-                        if viewModel.isSearching {
-                            ProgressView()
-                                .tint(.white)
-                                .padding(.vertical, 8)
-                        } else if viewModel.artistResults.isEmpty && !viewModel.searchText.isEmpty {
-                            Text("No artists found — try another search.")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.6))
-                                .padding(.vertical, 8)
+                        // Head-to-head cards
+                        HStack(spacing: 12) {
+                            FighterCard(
+                                side: .red,
+                                name: appState.name(for: .red),
+                                artist: viewModel.redArtist,
+                                artworkURL: viewModel.artwork[.red] ?? nil,
+                                isAssigning: viewModel.assigningSide == .red,
+                                isLocked: viewModel.redLocked,
+                                onSelect: { viewModel.assigningSide = .red },
+                                onLock: { viewModel.lock(.red) }
+                            )
+                            FighterCard(
+                                side: .blue,
+                                name: appState.name(for: .blue),
+                                artist: viewModel.blueArtist,
+                                artworkURL: viewModel.artwork[.blue] ?? nil,
+                                isAssigning: viewModel.assigningSide == .blue,
+                                isLocked: viewModel.blueLocked,
+                                onSelect: { viewModel.assigningSide = .blue },
+                                onLock: { viewModel.lock(.blue) }
+                            )
                         }
-
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), spacing: 8) {
-                            ForEach(viewModel.artistResults, id: \.self) { artist in
-                                Button { viewModel.tapArtist(artist) } label: {
-                                    Text(artist)
-                                        .font(VerzuzTheme.display(15))
+                        .overlay(alignment: .center) {
+                            VStack(spacing: 6) {
+                                Text("VS")
+                                    .font(VerzuzTheme.display(18))
+                                    .foregroundStyle(.white)
+                                    .padding(10)
+                                    .background(Circle().fill(.black))
+                                Button { viewModel.swapSides() } label: {
+                                    Image(systemName: "arrow.left.arrow.right")
+                                        .font(.system(size: 13, weight: .bold))
                                         .foregroundStyle(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 12)
-                                        .background(.black.opacity(0.85))
-                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .padding(8)
+                                        .background(Circle().fill(.black.opacity(0.85)))
+                                        .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
                                 }
+                                .accessibilityLabel("Swap sides")
+                            }
+                        }
+
+                        // Artist search — live catalog results, bounded so the
+                        // continue button never gets pushed off screen.
+                        VStack(spacing: 10) {
+                            TextField("Search artists", text: $viewModel.searchText)
+                                .padding(12)
+                                .background(.black.opacity(0.85))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .foregroundStyle(.white)
+                                .onChange(of: viewModel.searchText) { _, new in
+                                    viewModel.searchChanged(new)
+                                }
+
+                            if viewModel.isSearching || !viewModel.artistResults.isEmpty || !viewModel.searchText.isEmpty {
+                                ScrollView {
+                                    if viewModel.isSearching {
+                                        ProgressView()
+                                            .tint(.white)
+                                            .padding(.vertical, 8)
+                                    } else if viewModel.artistResults.isEmpty {
+                                        Text("No artists found — try another search.")
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundStyle(.white.opacity(0.6))
+                                            .padding(.vertical, 8)
+                                    }
+                                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), spacing: 8) {
+                                        ForEach(viewModel.artistResults) { hit in
+                                            Button { viewModel.tapArtist(hit) } label: {
+                                                HStack(spacing: 8) {
+                                                    artistThumb(url: hit.artworkURL, name: hit.name, size: 36)
+                                                    Text(hit.name)
+                                                        .font(VerzuzTheme.display(14))
+                                                        .foregroundStyle(.white)
+                                                        .lineLimit(1)
+                                                    Spacer(minLength: 0)
+                                                }
+                                                .frame(maxWidth: .infinity)
+                                                .padding(8)
+                                                .background(.black.opacity(0.85))
+                                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                            }
+                                        }
+                                    }
+                                }
+                                .frame(height: 240)
                             }
                         }
                     }
-
-                    Button("CONTINUE TO COIN TOSS") { viewModel.cont() }
-                        .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 20))
-                        .disabled(!viewModel.canContinue)
-                        .opacity(viewModel.canContinue ? 1 : 0.4)
-                        .padding(.bottom, 8)
+                    .padding(20)
                 }
-                .padding(20)
+
+                Button("CONTINUE TO COIN TOSS") { viewModel.cont() }
+                    .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 20))
+                    .disabled(!viewModel.canContinue)
+                    .opacity(viewModel.canContinue ? 1 : 0.4)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(.black.opacity(0.6))
             }
         }
         .task { viewModel.configure(appState) }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    @ViewBuilder
+    func artistThumb(url: URL?, name: String, size: CGFloat) -> some View {
+        if let url {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let img): img.resizable().scaledToFill()
+                default: Color.white.opacity(0.12)
+                }
+            }
+            .frame(width: size, height: size)
+            .clipShape(Circle())
+        } else {
+            ZStack {
+                Circle().fill(Color.white.opacity(0.12)).frame(width: size, height: size)
+                Text(String(name.prefix(1)).uppercased())
+                    .font(VerzuzTheme.display(size * 0.4))
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+        }
     }
 }
 
@@ -217,6 +277,7 @@ struct FighterCard: View {
     let side: Side
     let name: String
     let artist: String?
+    let artworkURL: URL?
     let isAssigning: Bool
     let isLocked: Bool
     let onSelect: () -> Void
@@ -235,12 +296,23 @@ struct FighterCard: View {
             Button(action: onSelect) {
                 VStack(spacing: 10) {
                     ZStack {
-                        Circle()
-                            .fill(clash)
+                        if let artworkURL {
+                            AsyncImage(url: artworkURL) { phase in
+                                switch phase {
+                                case .success(let img): img.resizable().scaledToFill()
+                                default: Circle().fill(clash)
+                                }
+                            }
                             .frame(width: 84, height: 84)
-                        Text(initials)
-                            .font(VerzuzTheme.display(30))
-                            .foregroundStyle(.black)
+                            .clipShape(Circle())
+                        } else {
+                            Circle()
+                                .fill(clash)
+                                .frame(width: 84, height: 84)
+                            Text(initials)
+                                .font(VerzuzTheme.display(30))
+                                .foregroundStyle(.black)
+                        }
                     }
                     Text(name)
                         .font(VerzuzTheme.display(16))

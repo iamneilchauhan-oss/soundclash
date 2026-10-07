@@ -16,6 +16,8 @@ struct SoundClashApp: App {
                         switch route {
                         case .menu:
                             MenuView()
+                        case .cheatSheet:
+                            CheatSheetView()
                         case .joinHost:
                             JoinHostView()
                         case .lobby:

@@ -59,9 +59,9 @@ struct MenuView: View {
                     .buttonStyle(VerzuzButtonStyle(fill: .black, textColor: .white, fontSize: 24))
 
                     Button {
-                        // Placeholder — destination TBD.
+                        appState.go(.cheatSheet)
                     } label: {
-                        Text("PLACEHOLDER")
+                        Text("CHEAT SHEET")
                     }
                     .buttonStyle(VerzuzButtonStyle(fill: accent.color, textColor: accent.onColor, fontSize: 24))
                 }

@@ -75,7 +75,7 @@ final class AppleMusicProvider: MusicProvider {
         }
     }
 
-    func searchArtists(query: String) async throws -> [String] {
+    func searchArtists(query: String) async throws -> [ArtistHit] {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return [] }
         var request = MusicCatalogSearchRequest(term: q, types: [Artist.self])
@@ -83,7 +83,9 @@ final class AppleMusicProvider: MusicProvider {
         let response = try await request.response()
         // De-dupe while preserving catalog ranking.
         var seen = Set<String>()
-        return Array(response.artists).map(\.name).filter { seen.insert($0).inserted }
+        return Array(response.artists)
+            .map { ArtistHit(name: $0.name, artworkURL: $0.artwork?.url(width: 300, height: 300)) }
+            .filter { seen.insert($0.name).inserted }
     }
 
     /// Resolves a lightweight SCTrack back to a full catalog Song for playback.
